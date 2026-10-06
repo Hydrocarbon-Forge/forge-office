@@ -30,6 +30,7 @@
       this.shelves = []; // archive shelf slots
       this.projectBoxes = []; // project boxes on shelves
       this.waypoints = {}; // named waypoints for agents
+      this.decor = []; // procedural decor layer
       this.lightCanvas = null;
       this.lightCtx = null;
       this.lightDirty = true;
@@ -41,9 +42,11 @@
     init() {
       this.grid = new Array(this.width * this.height).fill(T_EMPTY);
       this.solid = new Array(this.width * this.height).fill(true);
+      this.decor = [];
 
       this.buildBaseRooms();
       this.buildWaypoints();
+      this.buildDecor();
       this.initLighting();
     }
 
@@ -264,18 +267,99 @@
       };
     }
 
+    buildDecor() {
+      this.decor = [
+        // Lobby Decor
+        { x: 18, y: 11, w: 7, h: 4, kind: 'rug_reception', variant: 'teal_gold' },
+        { x: 21, y: 22, kind: 'door_mat', variant: 'coir' }, // Welcome mat at archives door
+        { x: 21, y: 8, kind: 'door_mat', variant: 'peach' },  // Claude door mat
+        { x: 13, y: 7, kind: 'door_mat', variant: 'mint' },   // OpenCode door mat
+        { x: 30, y: 7, kind: 'door_mat', variant: 'slate' },  // Antigravity door mat
+        { x: 13, y: 17, kind: 'door_mat', variant: 'warm' },  // Break room door mat
+        { x: 30, y: 17, kind: 'door_mat', variant: 'cool' },  // Storage door mat
+        { x: 32, y: 22, kind: 'door_mat', variant: 'teal' },  // Trading floor door mat
+        { x: 14, y: 10, kind: 'plant', variant: 'potted_monstera' },
+        { x: 29, y: 10, kind: 'plant', variant: 'potted_palm' },
+        { x: 14, y: 21, kind: 'plant', variant: 'potted_fern' },
+        { x: 29, y: 21, kind: 'plant', variant: 'potted_rubber' },
+        { x: 15, y: 21, w: 2, h: 1, kind: 'bench', variant: 'cushioned_wood', solid: true },
+        { x: 14, y: 9, kind: 'framed_art', variant: 'mountain' },
+        { x: 28, y: 9, kind: 'framed_art', variant: 'cyber' },
+        { x: 15, y: 12, kind: 'floor_lamp', variant: 'warm' },
+
+        // OpenCode Studio Decor
+        { x: 5, y: 8, w: 3, h: 2, kind: 'office_rug', variant: 'mint' },
+        { x: 9, y: 2, kind: 'wall_poster', variant: 'pixel_art' },
+        { x: 3, y: 2, w: 2, h: 1, kind: 'bookshelf', variant: 'tech', solid: true },
+        { x: 11, y: 2, kind: 'plant', variant: 'monstera' },
+        { x: 6, y: 6, kind: 'desk_clutter', variant: 'opencode' },
+        { x: 5, y: 6, kind: 'desk_lamp', variant: 'cyan' },
+
+        // Claude-Code Office Decor
+        { x: 20, y: 5, w: 3, h: 2, kind: 'office_rug', variant: 'peach' },
+        { x: 25, y: 2, kind: 'wall_poster', variant: 'neural' },
+        { x: 15, y: 2, w: 2, h: 1, kind: 'bookshelf', variant: 'classics', solid: true },
+        { x: 27, y: 2, kind: 'plant', variant: 'succulent' },
+        { x: 21, y: 3, kind: 'desk_clutter', variant: 'claude' },
+        { x: 20, y: 3, kind: 'desk_lamp', variant: 'amber' },
+
+        // Antigravity Lab Decor
+        { x: 36, y: 8, w: 3, h: 2, kind: 'office_rug', variant: 'slate' },
+        { x: 34, y: 2, kind: 'wall_poster', variant: 'galaxy' },
+        { x: 40, y: 2, w: 1, h: 1, kind: 'equipment_shelf', variant: 'telemetry', solid: true },
+        { x: 32, y: 2, kind: 'plant', variant: 'snake' },
+        { x: 37, y: 6, kind: 'desk_clutter', variant: 'antigravity' },
+        { x: 38, y: 6, kind: 'desk_lamp', variant: 'blue' },
+
+        // Break Room Decor
+        { x: 2, y: 13, kind: 'fridge', variant: 'steel', solid: true },
+        { x: 3, y: 14, w: 3, h: 1, kind: 'kitchen_counter', solid: true },
+        { x: 10, y: 13, kind: 'snack_shelf', variant: 'pantry', solid: true },
+        { x: 7, y: 18, kind: 'cafe_table_4', solid: true },
+        { x: 2, y: 21, kind: 'plant', variant: 'fern' },
+
+        // Archives Decor
+        { x: 18, y: 23, w: 1, h: 1, kind: 'finding_aids_table', solid: true },
+        { x: 25, y: 26, kind: 'rolling_ladder', variant: 'brass' }
+      ];
+
+      // Mark solid tiles for physical decor
+      for (const item of this.decor) {
+        if (item.solid) {
+          const w = item.w || 1;
+          const h = item.h || 1;
+          for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+              const tx = item.x + dx;
+              const ty = item.y + dy;
+              if (tx >= 0 && tx < this.width && ty >= 0 && ty < this.height) {
+                this.solid[ty * this.width + tx] = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
     initLighting() {
       this.lights = [
         // Status board & lobby glow
         { x: 21 * TILE + 16, y: 11 * TILE, radius: 240, color: 'rgba(90, 214, 160, 0.45)', flicker: 0 },
         // C6 desk lamp
         { x: 21 * TILE + 16, y: 12 * TILE, radius: 140, color: 'rgba(255, 235, 150, 0.55)', flicker: 0 },
-        // OpenCode monitor
+        // Lobby floor lamp
+        { x: 15 * TILE + 16, y: 12 * TILE + 16, radius: 120, color: 'rgba(255, 230, 160, 0.45)', flicker: 0 },
+        // Archives finding aids lamp
+        { x: 18 * TILE + 16, y: 23 * TILE + 16, radius: 100, color: 'rgba(255, 220, 140, 0.45)', flicker: 0 },
+        // OpenCode monitor & desk lamp
         { x: 6 * TILE + 16, y: 6 * TILE, radius: 150, color: 'rgba(0, 200, 180, 0.5)', flicker: 0.05 },
-        // Claude monitor
+        { x: 5 * TILE + 16, y: 6 * TILE + 16, radius: 90, color: 'rgba(200, 245, 255, 0.4)', flicker: 0 },
+        // Claude monitor & desk lamp
         { x: 21 * TILE + 16, y: 3 * TILE, radius: 150, color: 'rgba(255, 140, 66, 0.5)', flicker: 0.05 },
-        // Antigravity monitor
+        { x: 20 * TILE + 16, y: 3 * TILE + 16, radius: 90, color: 'rgba(255, 230, 170, 0.4)', flicker: 0 },
+        // Antigravity monitor & desk lamp
         { x: 37 * TILE + 16, y: 6 * TILE, radius: 150, color: 'rgba(90, 169, 230, 0.5)', flicker: 0.05 },
+        { x: 38 * TILE + 16, y: 6 * TILE + 16, radius: 90, color: 'rgba(210, 235, 255, 0.4)', flicker: 0 },
         // Break room warm light
         { x: 7 * TILE, y: 17 * TILE, radius: 180, color: 'rgba(255, 220, 140, 0.5)', flicker: 0 },
         // Storage room cool light

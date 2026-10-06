@@ -9,15 +9,38 @@
       this.agents = null;
       this.net = null;
 
+      // Saved profile & initial cosmetics
+      let savedProfile = 'nathan';
+      try {
+        const sp = localStorage.getItem('forge_office_profile');
+        if (sp && (sp === 'nathan' || sp === 'gavin' || sp === 'guest')) savedProfile = sp;
+      } catch {}
+
+      const defaultCosmetics = {
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'classic' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'classic' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'classic' }
+      };
+
+      let initialCosmetics = Object.assign({}, defaultCosmetics[savedProfile] || defaultCosmetics.nathan);
+      try {
+        const savedCustom = localStorage.getItem('forge_office_cosmetics_' + savedProfile);
+        if (savedCustom) Object.assign(initialCosmetics, JSON.parse(savedCustom));
+      } catch {}
+
+      let initialName = savedProfile === 'nathan' ? 'Nathan' : (savedProfile === 'gavin' ? 'Gavin' : 'Guest');
+      try {
+        if (savedProfile === 'guest') {
+          const gn = localStorage.getItem('forge_office_guest_name');
+          if (gn) initialName = gn;
+        }
+      } catch {}
+
       // Local player
       this.player = {
-        name: 'Agent',
-        cosmetics: {
-          color: 'coral',
-          hat: 'cap',
-          trail: 'sparkle',
-          face: 'classic'
-        },
+        name: initialName,
+        profile: savedProfile,
+        cosmetics: initialCosmetics,
         x: 21 * 32 + 16,
         y: 17 * 32 + 16,
         vx: 0,
@@ -28,6 +51,10 @@
         walkTimer: 0,
         footFrame: 0
       };
+
+      this.playerPath = null;
+      this.clockModalOpen = false;
+      this.minimapOpen = true;
 
       // Camera
       this.camera = {
@@ -54,7 +81,8 @@
         antigravity: {},
         projects: [],
         flow: null,
-        trading: null
+        trading: null,
+        presence: null
       };
 
       // Interactive focus
@@ -107,6 +135,8 @@
       // 7. Setup Start Screen & UI
       this.setupStartScreen();
       this.setupWardrobeUI();
+      this.setupClockModal();
+      this.setupMinimap();
       this.setupMobileControls();
 
       // 8. Start Game Loop
@@ -127,9 +157,21 @@
         this.keys[e.key.toLowerCase()] = true;
         this.keys[e.code] = true;
 
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
+          this.playerPath = null;
+        }
+
         if (e.key === 'c' || e.key === 'C') {
           if (this.gameStarted && !this.activeInspection) {
             this.toggleWardrobe();
+          }
+        } else if (e.key === 'k' || e.key === 'K') {
+          if (this.gameStarted) {
+            this.toggleClockModal();
+          }
+        } else if (e.key === 'b' || e.key === 'B') {
+          if (this.gameStarted) {
+            this.toggleMinimap();
           }
         } else if (e.key === 'm' || e.key === 'M') {
           const muted = sfx.toggleMute();
@@ -142,6 +184,7 @@
         } else if (e.key === 'Escape') {
           if (this.activeInspection) this.closeInspection();
           if (this.wardrobeOpen) this.toggleWardrobe(false);
+          if (this.clockModalOpen) this.toggleClockModal(false);
         }
       });
 
@@ -215,12 +258,27 @@
         }
       };
 
+      const pollPresence = async () => {
+        try {
+          const resp = await fetch('/api/office/presence');
+          if (resp && resp.ok) {
+            this.liveData.presence = await resp.json();
+            this.updateClockUI();
+            this.updatePresenceChips();
+          }
+        } catch (err) {
+          console.warn('API presence poll error:', err);
+        }
+      };
+
       // Initial fetch
       pollStats();
       pollProjects();
       pollTrading();
+      pollPresence();
 
-      // Recurring pollers: 15s for summary, 30s for projects, 60s for trading
+      // Recurring pollers: 10s for presence, 15s for summary, 30s for projects, 60s for trading
+      setInterval(pollPresence, 10000);
       setInterval(pollStats, 15000);
       setInterval(pollProjects, 30000);
       setInterval(pollTrading, 60000);
@@ -299,6 +357,9 @@
 
       this.update(dt);
       this.render();
+      if (this.minimapOpen && this.gameStarted) {
+        this.renderMinimap();
+      }
 
       requestAnimationFrame((t) => this.loop(t));
     }
@@ -365,11 +426,29 @@
         moveY += this.touchJoystick.dy;
       }
 
-      // Normalize diagonal
-      const len = Math.hypot(moveX, moveY);
+      // Normalize diagonal or follow path
+      let len = Math.hypot(moveX, moveY);
       if (len > 0.01) {
+        this.playerPath = null;
         moveX /= len;
         moveY /= len;
+      } else if (this.playerPath && this.playerPath.length > 0) {
+        const nextWp = this.playerPath[0];
+        const dx = nextWp.x - p.x;
+        const dy = nextWp.y - p.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 10) {
+          this.playerPath.shift();
+          if (this.playerPath.length === 0) {
+            p.vx = 0;
+            p.vy = 0;
+            p.isMoving = false;
+          }
+        } else {
+          moveX = dx / dist;
+          moveY = dy / dist;
+          len = 1.0;
+        }
       }
 
       const isSprint = this.keys['shift'] || this.touchSprint;
@@ -499,6 +578,21 @@
     }
 
     updateParticles(dt) {
+      // Gentle coffee machine steam wisps
+      if (Math.random() < 0.25) {
+        this.particles.push({
+          x: 3 * 32 + 18 + (Math.random() * 4 - 2),
+          y: 14 * 32 - 4,
+          vx: (Math.random() - 0.5) * 4,
+          vy: -12 - Math.random() * 6,
+          life: 2.0,
+          maxLife: 2.0,
+          type: 'steam',
+          scale: 1.0 + Math.random() * 0.6,
+          alpha: 0.5
+        });
+      }
+
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const pt = this.particles[i];
         pt.life -= dt;
@@ -610,6 +704,11 @@
           ctx.beginPath();
           ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
           ctx.stroke();
+        } else if (pt.type === 'steam') {
+          ctx.fillStyle = `rgba(240, 245, 255, ${(pt.alpha * 0.4).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 3 * pt.scale * (1.3 - pt.alpha * 0.4), 0, Math.PI * 2);
+          ctx.fill();
         }
 
         ctx.restore();
@@ -686,6 +785,39 @@
       const startScreen = document.getElementById('startScreen');
       const previewCanvas = document.getElementById('startAvatarPreview');
 
+      const cardNathan = document.getElementById('cardNathan');
+      const cardGavin = document.getElementById('cardGavin');
+      const cardGuest = document.getElementById('cardGuest');
+      const guestNameGroup = document.getElementById('guestNameInputGroup');
+
+      const nathanPreview = document.getElementById('nathanAvatarPreview');
+      const gavinPreview = document.getElementById('gavinAvatarPreview');
+      const guestPreview = document.getElementById('guestAvatarPreview');
+
+      const defaultCosmetics = {
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'classic' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'classic' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'classic' }
+      };
+
+      // Draw card previews
+      const drawCardPreview = (canvas, color, hat, face) => {
+        if (!canvas) return;
+        const pctx = canvas.getContext('2d');
+        pctx.clearRect(0, 0, canvas.width, canvas.height);
+        this.renderer.renderAvatar(pctx, canvas.width / 2, canvas.height / 2 + 8, {
+          color,
+          hat,
+          face,
+          facing: 1,
+          scale: 1.15
+        });
+      };
+
+      drawCardPreview(nathanPreview, 'teal', 'cap', 'classic');
+      drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'classic');
+      drawCardPreview(guestPreview, 'coral', 'cap', 'classic');
+
       const renderPreview = () => {
         if (!previewCanvas) return;
         const pctx = previewCanvas.getContext('2d');
@@ -699,22 +831,87 @@
         });
       };
 
-      // Populate Start Screen Pickers
-      this.populateCosmeticPickers('startPickers', renderPreview);
-      renderPreview();
+      const selectProfile = (profKey) => {
+        this.player.profile = profKey;
+        const cards = [cardNathan, cardGavin, cardGuest];
+        cards.forEach((c) => {
+          if (!c) return;
+          if (c.dataset.profile === profKey) {
+            c.classList.add('selected');
+          } else {
+            c.classList.remove('selected');
+          }
+        });
+
+        if (profKey === 'guest') {
+          if (guestNameGroup) guestNameGroup.classList.remove('hidden');
+          let gName = 'Guest';
+          try {
+            const savedG = localStorage.getItem('forge_office_guest_name');
+            if (savedG) gName = savedG;
+          } catch {}
+          if (nameInput) nameInput.value = gName;
+          this.player.name = gName;
+        } else {
+          if (guestNameGroup) guestNameGroup.classList.add('hidden');
+          this.player.name = profKey === 'nathan' ? 'Nathan' : 'Gavin';
+        }
+
+        let targetCosmetics = Object.assign({}, defaultCosmetics[profKey] || defaultCosmetics.nathan);
+        try {
+          const savedCustom = localStorage.getItem('forge_office_cosmetics_' + profKey);
+          if (savedCustom) Object.assign(targetCosmetics, JSON.parse(savedCustom));
+        } catch {}
+        this.player.cosmetics = targetCosmetics;
+
+        this.populateCosmeticPickers('startPickers', renderPreview);
+        renderPreview();
+      };
+
+      if (cardNathan) cardNathan.addEventListener('click', () => selectProfile('nathan'));
+      if (cardGavin) cardGavin.addEventListener('click', () => selectProfile('gavin'));
+      if (cardGuest) cardGuest.addEventListener('click', () => selectProfile('guest'));
+
+      // Initial profile selection
+      selectProfile(this.player.profile || 'nathan');
 
       enterBtn.addEventListener('click', () => {
-        const nameVal = nameInput.value.trim().substring(0, 16);
-        if (nameVal) this.player.name = nameVal;
+        if (this.player.profile === 'guest') {
+          const nameVal = nameInput ? nameInput.value.trim().substring(0, 16) : '';
+          this.player.name = nameVal || 'Guest';
+          try {
+            localStorage.setItem('forge_office_guest_name', this.player.name);
+          } catch {}
+        }
+
+        try {
+          localStorage.setItem('forge_office_profile', this.player.profile);
+          localStorage.setItem('forge_office_cosmetics_' + this.player.profile, JSON.stringify(this.player.cosmetics));
+        } catch {}
+
+        // Persist profile to server
+        fetch('/api/office/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile: this.player.profile,
+            name: this.player.name,
+            cosmetics: this.player.cosmetics
+          })
+        }).catch(() => {});
+
         sfx.init();
         startScreen.classList.add('hidden');
         this.gameStarted = true;
         sfx.playChime();
         this.showNotification(`Welcome to Forge Office, ${this.player.name}!`);
 
-        if (this.net && this.net.connected) {
-          this.net.sendName(this.player.name);
-          this.net.sendEquip(this.player.cosmetics);
+        if (this.net) {
+          if (this.net.connected) {
+            this.net.sendJoin();
+          } else {
+            this.net.connect();
+          }
         }
       });
 
@@ -873,6 +1070,18 @@
         });
         sfx.playChime();
         this.spawnSparkleBurst(this.player.x, this.player.y);
+        try {
+          localStorage.setItem('forge_office_cosmetics_' + this.player.profile, JSON.stringify(this.player.cosmetics));
+        } catch {}
+        fetch('/api/office/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile: this.player.profile,
+            name: this.player.name,
+            cosmetics: this.player.cosmetics
+          })
+        }).catch(() => {});
         if (this.net) {
           this.net.sendEquip(this.player.cosmetics);
         }
@@ -910,6 +1119,366 @@
       if (muteBtn) {
         muteBtn.innerText = muted ? '🔇 MUTED' : '🔊 SOUND';
       }
+    }
+
+    // -------------------------------------------------------------------------
+    // UI: Clock Modal (K key) & Presence Stats
+    // -------------------------------------------------------------------------
+    setupClockModal() {
+      const closeBtn = document.getElementById('closeClockBtn');
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleClockModal(false));
+
+      const clockBtn = document.getElementById('clockBtn');
+      if (clockBtn) clockBtn.addEventListener('click', () => this.toggleClockModal());
+    }
+
+    toggleClockModal(force) {
+      const modal = document.getElementById('clockModal');
+      if (!modal) return;
+      this.clockModalOpen = force !== undefined ? force : !this.clockModalOpen;
+      if (this.clockModalOpen) {
+        modal.classList.remove('hidden');
+        this.updateClockUI();
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    updateClockUI() {
+      const data = this.liveData.presence;
+      if (!data) return;
+
+      const onlineMap = new Map((data.online || []).map((p) => [(p.profile || '').toLowerCase(), p.since]));
+      const stats = data.stats || {};
+      const discord = data.discord || {};
+      const now = Date.now();
+
+      const formatOnlineTag = (profKey) => {
+        const since = onlineMap.get(profKey);
+        if (since) {
+          const diffMin = Math.max(0, Math.floor((now - since) / 60000));
+          const h = Math.floor(diffMin / 60);
+          const m = diffMin % 60;
+          const timeText = h > 0 ? `${h}h ${m}m` : `${m}m`;
+          return `<span class="status-dot green"></span> <span class="status-text">Clocked in ${timeText}</span>`;
+        }
+        return `<span class="status-dot gray"></span> <span class="status-text">Away</span>`;
+      };
+
+      const formatDiscordTag = (profKey) => {
+        const d = discord[profKey];
+        if (!d) return 'Discord: Inactive';
+        if (d.active) {
+          const age = d.age_minutes !== null ? `${d.age_minutes}m ago` : 'just now';
+          return `Discord: <span style="color:#ECC94B">Active (${age})</span>`;
+        }
+        if (d.age_minutes !== null && d.age_minutes !== undefined) {
+          return `Discord: Idle (${d.age_minutes}m ago)`;
+        }
+        return 'Discord: Inactive';
+      };
+
+      // Nathan
+      const nOfficeStatus = document.getElementById('nathanOfficeStatus');
+      if (nOfficeStatus) nOfficeStatus.innerHTML = formatOnlineTag('nathan');
+
+      const nDiscordStatus = document.getElementById('nathanDiscordStatus');
+      if (nDiscordStatus) nDiscordStatus.innerHTML = formatDiscordTag('nathan');
+
+      const nStats = stats.nathan || {};
+      const nTotal = document.getElementById('nathanTotalH');
+      if (nTotal) nTotal.innerText = nStats.total_h !== undefined ? nStats.total_h : '--';
+      const nSess = document.getElementById('nathanSessions');
+      if (nSess) nSess.innerText = nStats.sessions !== undefined ? nStats.sessions : '--';
+      const nLong = document.getElementById('nathanLongestH');
+      if (nLong) nLong.innerText = nStats.longest_h !== undefined ? nStats.longest_h : '--';
+      const nWith = document.getElementById('nathanTogether');
+      if (nWith) nWith.innerText = nStats.sessions_with !== undefined ? nStats.sessions_with : '--';
+
+      // Gavin
+      const gOfficeStatus = document.getElementById('gavinOfficeStatus');
+      if (gOfficeStatus) gOfficeStatus.innerHTML = formatOnlineTag('gavin');
+
+      const gDiscordStatus = document.getElementById('gavinDiscordStatus');
+      if (gDiscordStatus) gDiscordStatus.innerHTML = formatDiscordTag('gavin');
+
+      const gStats = stats.gavin || {};
+      const gTotal = document.getElementById('gavinTotalH');
+      if (gTotal) gTotal.innerText = gStats.total_h !== undefined ? gStats.total_h : '--';
+      const gSess = document.getElementById('gavinSessions');
+      if (gSess) gSess.innerText = gStats.sessions !== undefined ? gStats.sessions : '--';
+      const gLong = document.getElementById('gavinLongestH');
+      if (gLong) gLong.innerText = gStats.longest_h !== undefined ? gStats.longest_h : '--';
+      const gWith = document.getElementById('gavinTogether');
+      if (gWith) gWith.innerText = gStats.sessions_with !== undefined ? gStats.sessions_with : '--';
+    }
+
+    updatePresenceChips() {
+      const chip = document.getElementById('presenceChip');
+      if (!chip) return;
+
+      const prof = (this.player.profile || 'guest').toLowerCase();
+      const pres = this.liveData.presence;
+      const discord = pres && pres.discord ? pres.discord : {};
+
+      if (prof === 'nathan' || prof === 'gavin') {
+        const d = discord[prof];
+        const isDcActive = d && d.active;
+        const displayName = prof === 'nathan' ? 'Nathan' : 'Gavin';
+        chip.innerHTML = `<span class="status-dot green"></span> <span>${displayName} (You): In Office${isDcActive ? ' • Discord Active' : ''}</span>`;
+      } else {
+        const name = this.player.name || 'Guest';
+        chip.innerHTML = `<span class="status-dot green"></span> <span>${name}: In Office</span>`;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // UI: Minimap Panel (B key)
+    // -------------------------------------------------------------------------
+    setupMinimap() {
+      const minimapBtn = document.getElementById('minimapBtn');
+      const toggleBtn = document.getElementById('toggleMinimapBtn');
+      const canvas = document.getElementById('minimapCanvas');
+
+      if (minimapBtn) minimapBtn.addEventListener('click', () => this.toggleMinimap());
+      if (toggleBtn) toggleBtn.addEventListener('click', () => this.toggleMinimap());
+
+      if (canvas) {
+        canvas.addEventListener('click', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const clickY = e.clientY - rect.top;
+          this.handleMinimapClick(clickX, clickY, canvas.width, canvas.height);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          this.handleMinimapHover(mx, my, canvas.width, canvas.height);
+        });
+      }
+    }
+
+    toggleMinimap(force) {
+      const panel = document.getElementById('minimapPanel');
+      if (!panel) return;
+      this.minimapOpen = force !== undefined ? force : !this.minimapOpen;
+      if (this.minimapOpen) {
+        panel.classList.remove('collapsed');
+      } else {
+        panel.classList.add('collapsed');
+      }
+      sfx.playUiTick();
+    }
+
+    getMinimapRooms() {
+      const archHeight = Math.max(16, this.map.height - 22);
+      return [
+        { id: 'opencode', name: 'OPENCODE', x: 1, y: 1, w: 12, h: 11, color: '#38A169', doorX: 13 * 32 + 16, doorY: 7 * 32 + 16 },
+        { id: 'claude', name: 'CLAUDE', x: 13, y: 1, w: 17, h: 7, color: '#805AD5', doorX: 21 * 32 + 16, doorY: 8 * 32 + 16 },
+        { id: 'antigravity', name: 'ANTIGRAV', x: 30, y: 1, w: 12, h: 11, color: '#DD6B20', doorX: 30 * 32 + 16, doorY: 7 * 32 + 16 },
+        { id: 'breakroom', name: 'BREAK', x: 1, y: 12, w: 12, h: 10, color: '#D69E2E', doorX: 13 * 32 + 16, doorY: 17 * 32 + 16 },
+        { id: 'storage', name: 'STORAGE', x: 30, y: 12, w: 12, h: 10, color: '#319795', doorX: 30 * 32 + 16, doorY: 17 * 32 + 16 },
+        { id: 'lobby', name: 'LOBBY', x: 13, y: 8, w: 17, h: 14, color: '#00BBF9', doorX: 21 * 32 + 16, doorY: 16 * 32 + 16 },
+        { id: 'c6', name: 'C6 DESK', x: 19, y: 11.5, w: 5, h: 2, color: '#3182CE', doorX: 21 * 32 + 16, doorY: 14 * 32 + 16 },
+        { id: 'archives', name: 'ARCHIVES', x: 17, y: 22, w: 10, h: archHeight, color: '#8D6E63', doorX: 21 * 32 + 16, doorY: 22 * 32 + 16 }
+      ];
+    }
+
+    handleMinimapClick(clickX, clickY, canvasWidth, canvasHeight) {
+      const scaleX = canvasWidth / this.map.width;
+      const scaleY = canvasHeight / this.map.height;
+      const gridX = clickX / scaleX;
+      const gridY = clickY / scaleY;
+
+      const rooms = this.getMinimapRooms();
+      const sortedRooms = [...rooms].sort((a, b) => (a.id === 'c6' ? -1 : 1));
+      let targetRoom = null;
+      for (const r of sortedRooms) {
+        if (gridX >= r.x && gridX <= r.x + r.w && gridY >= r.y && gridY <= r.y + r.h) {
+          targetRoom = r;
+          break;
+        }
+      }
+
+      let destX, destY, destName;
+      if (targetRoom) {
+        destX = targetRoom.doorX;
+        destY = targetRoom.doorY;
+        destName = targetRoom.name;
+      } else {
+        destX = Math.round(gridX * 32);
+        destY = Math.round(gridY * 32);
+        destName = 'Waypoint';
+      }
+
+      const path = this.map.findPath(this.player.x, this.player.y, destX, destY);
+      if (path && path.length > 0) {
+        this.playerPath = path;
+        this.showNotification(`Pathfinding to ${destName}...`);
+        sfx.playUiTick();
+      } else {
+        this.showNotification(`Cannot reach ${destName}`);
+      }
+    }
+
+    handleMinimapHover(mx, my, canvasWidth, canvasHeight) {
+      const canvas = document.getElementById('minimapCanvas');
+      if (!canvas) return;
+      const scaleX = canvasWidth / this.map.width;
+      const scaleY = canvasHeight / this.map.height;
+
+      // Check remote players
+      if (this.net) {
+        for (const rp of this.net.getRemotePlayersList()) {
+          const rmx = (rp.x / 32) * scaleX;
+          const rmy = (rp.y / 32) * scaleY;
+          if (Math.hypot(mx - rmx, my - rmy) < 6) {
+            canvas.title = `Player: ${rp.name || 'Visitor'}`;
+            return;
+          }
+        }
+      }
+
+      // Check rooms
+      const gridX = mx / scaleX;
+      const gridY = my / scaleY;
+      const rooms = this.getMinimapRooms();
+      for (const r of rooms) {
+        if (gridX >= r.x && gridX <= r.x + r.w && gridY >= r.y && gridY <= r.y + r.h) {
+          canvas.title = `Room: ${r.name} (Click to Move)`;
+          return;
+        }
+      }
+      canvas.title = 'Click to Navigate';
+    }
+
+    renderMinimap() {
+      const canvas = document.getElementById('minimapCanvas');
+      if (!canvas) return;
+      const mctx = canvas.getContext('2d');
+      const cw = canvas.width;
+      const ch = canvas.height;
+
+      mctx.clearRect(0, 0, cw, ch);
+
+      // Background
+      mctx.fillStyle = '#11141C';
+      mctx.fillRect(0, 0, cw, ch);
+
+      const scaleX = cw / this.map.width;
+      const scaleY = ch / this.map.height;
+
+      const rooms = this.getMinimapRooms();
+
+      // Draw rooms
+      for (const r of rooms) {
+        const rx = r.x * scaleX;
+        const ry = r.y * scaleY;
+        const rw = r.w * scaleX;
+        const rh = r.h * scaleY;
+
+        mctx.fillStyle = r.color;
+        mctx.globalAlpha = 0.35;
+        this.renderer.drawRoundedRect(mctx, rx, ry, rw, rh, 3, true, false);
+
+        mctx.strokeStyle = r.color;
+        mctx.lineWidth = 1;
+        mctx.globalAlpha = 0.85;
+        this.renderer.drawRoundedRect(mctx, rx, ry, rw, rh, 3, false, true);
+
+        // Room label inside / under
+        mctx.fillStyle = '#FFFFFF';
+        mctx.globalAlpha = 0.9;
+        mctx.font = 'bold 6.5px "Segoe UI Rounded", sans-serif';
+        mctx.textAlign = 'center';
+        mctx.textBaseline = 'middle';
+        if (r.id !== 'c6') {
+          mctx.fillText(r.name, rx + rw / 2, ry + rh / 2);
+        } else {
+          mctx.fillText('C6', rx + rw / 2, ry + rh / 2);
+        }
+      }
+      mctx.globalAlpha = 1.0;
+
+      // Viewport rectangle overlay
+      const vx = (this.camera.x / 32) * scaleX;
+      const vy = (this.camera.y / 32) * scaleY;
+      const vw = (this.camera.width / 32) * scaleX;
+      const vh = (this.camera.height / 32) * scaleY;
+
+      mctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      mctx.lineWidth = 1.2;
+      mctx.strokeRect(vx, vy, vw, vh);
+      mctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      mctx.fillRect(vx, vy, vw, vh);
+
+      // Subagents dots (tiny dots: radius 1.5)
+      if (this.agents && this.agents.harnessAgents) {
+        for (const ag of Object.values(this.agents.harnessAgents)) {
+          if (Array.isArray(ag.subagents)) {
+            for (const sub of ag.subagents) {
+              const sx = (sub.x / 32) * scaleX;
+              const sy = (sub.y / 32) * scaleY;
+              mctx.fillStyle = sub.color || '#CBD5E0';
+              mctx.beginPath();
+              mctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+              mctx.fill();
+            }
+          }
+        }
+      }
+
+      // Harness agents dots (their color, radius 2.5)
+      if (this.agents && this.agents.harnessAgents) {
+        for (const ag of Object.values(this.agents.harnessAgents)) {
+          const ax = (ag.x / 32) * scaleX;
+          const ay = (ag.y / 32) * scaleY;
+          mctx.fillStyle = ag.color || '#E2E8F0';
+          mctx.beginPath();
+          mctx.arc(ax, ay, 2.5, 0, Math.PI * 2);
+          mctx.fill();
+        }
+      }
+
+      // C6 dot
+      if (this.agents && this.agents.c6) {
+        const c6x = (this.agents.c6.x / 32) * scaleX;
+        const c6y = (this.agents.c6.y / 32) * scaleY;
+        mctx.fillStyle = '#00BBF9';
+        mctx.beginPath();
+        mctx.arc(c6x, c6y, 2.5, 0, Math.PI * 2);
+        mctx.fill();
+      }
+
+      // Other players dots (their color, radius 3)
+      if (this.net) {
+        for (const rp of this.net.getRemotePlayersList()) {
+          const rpx = (rp.x / 32) * scaleX;
+          const rpy = (rp.y / 32) * scaleY;
+          mctx.fillStyle = (rp.cosmetics && rp.cosmetics.color) || '#FF5E7E';
+          mctx.beginPath();
+          mctx.arc(rpx, rpy, 3, 0, Math.PI * 2);
+          mctx.fill();
+          mctx.strokeStyle = '#FFFFFF';
+          mctx.lineWidth = 0.8;
+          mctx.stroke();
+        }
+      }
+
+      // Local player dot (white ring, radius 3.5)
+      const px = (this.player.x / 32) * scaleX;
+      const py = (this.player.y / 32) * scaleY;
+      mctx.fillStyle = (this.player.cosmetics && this.player.cosmetics.color) || '#00BBF9';
+      mctx.beginPath();
+      mctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      mctx.fill();
+      mctx.strokeStyle = '#FFFFFF';
+      mctx.lineWidth = 1.5;
+      mctx.stroke();
     }
 
     // -------------------------------------------------------------------------

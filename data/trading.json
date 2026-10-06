@@ -1,122 +1,122 @@
 {
-  "updated": "2026-10-06T13:07:22.849265+00:00",
-  "updated_ts": 1791292042.849265,
+  "updated": "2026-10-06T13:57:02.616972+00:00",
+  "updated_ts": 1791295022.616972,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
-    "equity": 99980.02,
+    "equity": 101529.67,
     "start": 100000.0,
-    "total_pnl": -19.98,
-    "total_pct": -0.02,
-    "day_pnl": -19.97,
-    "day_pct": -0.02,
-    "cash": 0.0,
-    "cash_pct": 0.0,
-    "total_fees": 9.98,
+    "total_pnl": 1529.67,
+    "total_pct": 1.53,
+    "day_pnl": 1529.68,
+    "day_pct": 1.53,
+    "cash": 5334.45,
+    "cash_pct": 5.3,
+    "total_fees": 55.92,
     "holdings": [
-      {
-        "sym": "AMD",
-        "qty": 31.66,
-        "px": 631.75,
-        "val": 20000.0,
-        "w": 20.0
-      },
       {
         "sym": "MSTR",
         "qty": 121.63,
-        "px": 164.43,
-        "val": 20000.0,
+        "px": 167.97,
+        "val": 20430.58,
+        "w": 20.1
+      },
+      {
+        "sym": "CRWD",
+        "qty": 71.06,
+        "px": 286.29,
+        "val": 20344.4,
+        "w": 20.0
+      },
+      {
+        "sym": "AMD",
+        "qty": 31.66,
+        "px": 641.0,
+        "val": 20292.84,
         "w": 20.0
       },
       {
         "sym": "META",
         "qty": 26.96,
-        "px": 741.9,
-        "val": 19999.99,
-        "w": 20.0
+        "px": 738.0,
+        "val": 19894.86,
+        "w": 19.6
       },
       {
-        "sym": "CRWD",
-        "qty": 73.35,
-        "px": 272.67,
-        "val": 19999.99,
-        "w": 20.0
-      },
-      {
-        "sym": "INTC",
-        "qty": 171.96,
-        "px": 116.19,
-        "val": 19980.03,
-        "w": 20.0
+        "sym": "PLTR",
+        "qty": 78.65,
+        "px": 193.68,
+        "val": 15232.54,
+        "w": 15.0
       }
     ],
     "trades_now": [
       {
-        "sym": "INTC",
-        "act": "buy",
-        "qty": 42.86,
-        "px": 116.31,
-        "reason": "conviction entry/top-up",
-        "fee": 4.99
+        "sym": "PLTR",
+        "act": "sell",
+        "qty": 26.22,
+        "px": 193.49,
+        "reason": "forced trim (weakest)",
+        "fee": 5.07
       }
     ],
-    "n_trades": 13,
+    "n_trades": 17,
     "quotes_ok": 20,
     "quotes_total": 20
   },
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 101531.54,
+    "equity": 101476.27,
     "start": 100000.0,
-    "total_pnl": 1531.54,
-    "total_pct": 1.53,
-    "day_pnl": 1531.54,
-    "day_pct": 1.53,
+    "total_pnl": 1476.27,
+    "total_pct": 1.48,
+    "day_pnl": 1476.27,
+    "day_pct": 1.48,
     "cash": 0.0,
     "cash_pct": 0.0,
-    "total_fees": 12.47,
+    "total_fees": 25.0,
     "holdings": [
       {
         "sym": "AVAX",
         "qty": 2232.5415,
-        "px": 11.47,
-        "val": 25605.02,
-        "w": 25.2
+        "px": 11.42,
+        "val": 25502.32,
+        "w": 25.1
       },
       {
         "sym": "WIF",
         "qty": 101584.7217,
         "px": 0.25,
-        "val": 25548.56,
-        "w": 25.2
+        "val": 25467.29,
+        "w": 25.1
       },
       {
         "sym": "LINK",
         "qty": 1812.645,
-        "px": 14.02,
-        "val": 25413.28,
-        "w": 25.0
+        "px": 14.03,
+        "val": 25425.97,
+        "w": 25.1
       },
       {
         "sym": "SOL",
-        "qty": 207.434,
-        "px": 120.35,
-        "val": 24964.68,
-        "w": 24.6
+        "qty": 207.227,
+        "px": 121.03,
+        "val": 25080.68,
+        "w": 24.7
       }
     ],
     "trades_now": [
       {
         "sym": "SOL",
         "act": "buy",
-        "qty": 51.7031,
-        "px": 120.47,
+        "qty": 51.6515,
+        "px": 121.15,
         "reason": "conviction entry/top-up",
-        "fee": 6.23
+        "fee": 6.26
       }
     ],
-    "n_trades": 6,
+    "n_trades": 8,
     "quotes_ok": 7,
     "quotes_total": 9
   },

@@ -117,6 +117,20 @@
           ctx.strokeStyle = floorAccent;
           ctx.lineWidth = 1;
           ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+
+          // Subtle wood-grain / tile procedural variation (2-3 variants per room)
+          const grainVariant = (x * 37 + y * 59) % 3;
+          if (grainVariant === 1) {
+            ctx.strokeStyle = floorAccent;
+            ctx.lineWidth = 0.75;
+            ctx.beginPath();
+            ctx.moveTo(px + 2, py + TILE / 2);
+            ctx.lineTo(px + TILE - 2, py + TILE / 2);
+            ctx.stroke();
+          } else if (grainVariant === 2) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+            ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
+          }
         }
       }
 
@@ -272,11 +286,11 @@
         this.renderCRTPanel(ctx, px, py, pw, ph, title, isOnline);
       };
 
-      // 1. Left Panel (Overview): x: 14.5 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 2.5 * TILE
+      // 1. Left Panel (Overview): x: 14.5 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 3.2 * TILE
       const lx = 14.5 * TILE;
       const ly = 8.6 * TILE;
       const lw = 5.8 * TILE;
-      const lh = 2.5 * TILE;
+      const lh = 3.2 * TILE;
       renderPanel(lx, ly, lw, lh, 'FORGE CLUSTER');
 
       // Online pill & clock
@@ -317,11 +331,79 @@
         ctx.fillRect(sx, ly + 67, barW * (0.3 + tickVal * 0.7), 3);
       });
 
-      // 2. Right Panel (Harness Metrics): x: 21.7 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 2.5 * TILE
+      // Lower row: People presence chips (Nathan & Gavin)
+      const pres = (liveData && liveData.presence) || {};
+      const onlineSet = new Set((pres.online || []).map((p) => (p.profile || '').toLowerCase()));
+      const disc = pres.discord || {};
+
+      const nathanInOffice = onlineSet.has('nathan');
+      const nathanDisc = disc.nathan && disc.nathan.active;
+      const nathanAge = (disc.nathan && typeof disc.nathan.age_minutes === 'number') ? disc.nathan.age_minutes : null;
+
+      const gavinInOffice = onlineSet.has('gavin');
+      const gavinDisc = disc.gavin && disc.gavin.active;
+      const gavinAge = (disc.gavin && typeof disc.gavin.age_minutes === 'number') ? disc.gavin.age_minutes : null;
+
+      const people = [
+        {
+          name: 'NATHAN',
+          office: nathanInOffice,
+          discord: nathanDisc,
+          age: nathanAge
+        },
+        {
+          name: 'GAVIN',
+          office: gavinInOffice,
+          discord: gavinDisc,
+          age: gavinAge
+        }
+      ];
+
+      // Subtle divider
+      ctx.fillStyle = 'rgba(56, 178, 172, 0.22)';
+      ctx.fillRect(lx + 8, ly + 74, lw - 16, 1);
+
+      // Section label
+      ctx.fillStyle = '#718096';
+      ctx.font = 'bold 6.5px "Segoe UI Rounded", sans-serif';
+      ctx.fillText('PEOPLE PRESENCE', lx + 8, ly + 83);
+
+      people.forEach((person, i) => {
+        const pxPos = lx + 8 + i * colW1;
+        const pyPos = ly + 93;
+
+        let dotColor = '#718096'; // gray default
+        let statusText = 'away';
+        if (person.office) {
+          dotColor = '#48BB78'; // green = in office now
+          statusText = 'in office';
+        } else if (person.discord) {
+          dotColor = '#ECC94B'; // amber = active on discord
+          statusText = person.age !== null ? `${person.age}m dc` : 'discord';
+        } else if (person.age !== null && person.age < 120) {
+          statusText = `${person.age}m ago`;
+        }
+
+        ctx.fillStyle = dotColor;
+        ctx.beginPath();
+        ctx.arc(pxPos + 3, pyPos, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = 'bold 7px "Segoe UI Rounded", sans-serif';
+        ctx.fillStyle = '#E2E8F0';
+        ctx.fillText(`${person.name}: `, pxPos + 8, pyPos + 2.5);
+
+        const nameWidth = ctx.measureText(`${person.name}: `).width;
+        ctx.fillStyle = dotColor;
+        ctx.font = '6.5px monospace';
+        ctx.fillText(statusText, pxPos + 8 + nameWidth, pyPos + 2.5);
+      });
+
+      // 2. Right Panel (Harness Metrics): x: 21.7 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 3.2 * TILE
       const rx = 21.7 * TILE;
       const ry = 8.6 * TILE;
       const rw = 5.8 * TILE;
-      const rh = 2.5 * TILE;
+      const rh = 3.2 * TILE;
       renderPanel(rx, ry, rw, rh, 'HARNESS METRICS');
 
       // Mini stats in right panel: TOOL CALLS & MESSAGES
@@ -358,6 +440,26 @@
         ctx.fillStyle = '#E2E8F0';
         ctx.fillText(`${harn.name}:${harn.sess}`, hx + 8, ry + 65);
       });
+
+      // Divider in right panel
+      ctx.fillStyle = 'rgba(56, 178, 172, 0.22)';
+      ctx.fillRect(rx + 8, ry + 74, rw - 16, 1);
+
+      ctx.fillStyle = '#718096';
+      ctx.font = 'bold 6.5px "Segoe UI Rounded", sans-serif';
+      ctx.fillText('LIVE FLOW STATUS', rx + 8, ry + 83);
+
+      const flow = (liveData && liveData.flow) || {};
+      const harnessesList = flow.harnesses || [];
+      const runningCount = harnessesList.filter(h => h.running).length;
+      ctx.fillStyle = runningCount > 0 ? '#48BB78' : '#A0AEC0';
+      ctx.beginPath();
+      ctx.arc(rx + 11, ry + 93, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = 'bold 7px "Segoe UI Rounded", sans-serif';
+      ctx.fillStyle = '#E2E8F0';
+      ctx.fillText(`Active Harnesses: ${runningCount}/${harnessesList.length || 3}`, rx + 16, ry + 95.5);
 
       ctx.restore();
     }
@@ -635,55 +737,90 @@
     drawFurniture(ctx, map, camera, liveData) {
       const TILE = 32;
 
-      // 1. C6 Front Desk (Lobby center: x: 19..23, y: 12)
-      this.drawDesk(ctx, 19 * TILE, 12 * TILE, 5 * TILE, 1.2 * TILE, '#D7A765');
-      // Laptop on C6 desk
-      this.drawLaptop(ctx, 21 * TILE + 8, 12 * TILE + 4, '#4FD1C5');
-      // Reception Bell
-      this.drawBell(ctx, 20 * TILE + 10, 12 * TILE + 8);
-      // Potted flower
-      this.drawFlowerVase(ctx, 23 * TILE + 6, 12 * TILE + 4);
+      // 1. Floor Door Mats & Rugs (Drawn underneath physical items)
+      this.drawDoorMat(ctx, 21 * TILE, 8 * TILE, 'peach');  // Claude door
+      this.drawDoorMat(ctx, 13 * TILE, 7 * TILE, 'mint');   // OpenCode door
+      this.drawDoorMat(ctx, 30 * TILE, 7 * TILE, 'slate');  // Antigravity door
+      this.drawDoorMat(ctx, 13 * TILE, 17 * TILE, 'warm');  // Break room door
+      this.drawDoorMat(ctx, 30 * TILE, 17 * TILE, 'cool');  // Storage door
+      this.drawDoorMat(ctx, 32 * TILE, 22 * TILE, 'teal');  // Trading floor door
+      this.drawDoorMat(ctx, 21 * TILE, 22 * TILE, 'coir');  // Archives welcome mat
 
-      // 2. OpenCode Desk & Office Setup (West North: x: 1..13, y: 1..12)
+      // Office Rugs
+      this.drawOfficeRug(ctx, 5 * TILE, 8 * TILE, 3 * TILE, 2 * TILE, 'rgba(0, 168, 150, 0.22)');
+      this.drawOfficeRug(ctx, 20 * TILE, 5 * TILE, 3 * TILE, 2 * TILE, 'rgba(224, 122, 95, 0.22)');
+      this.drawOfficeRug(ctx, 36 * TILE, 8 * TILE, 3 * TILE, 2 * TILE, 'rgba(61, 90, 128, 0.22)');
+
+      // 2. Wall Posters & Framed Art
+      this.drawWallPoster(ctx, 9 * TILE + 6, 2 * TILE, 'pixel_art');
+      this.drawWallPoster(ctx, 25 * TILE + 6, 2 * TILE, 'neural');
+      this.drawWallPoster(ctx, 34 * TILE + 6, 2 * TILE, 'galaxy');
+      this.drawFramedArt(ctx, 14 * TILE + 4, 9 * TILE + 4, 'mountain');
+      this.drawFramedArt(ctx, 28 * TILE + 4, 9 * TILE + 4, 'cyber');
+
+      // 3. Lobby Furniture
+      this.drawDesk(ctx, 19 * TILE, 12 * TILE, 5 * TILE, 1.2 * TILE, '#D7A765');
+      this.drawLaptop(ctx, 21 * TILE + 8, 12 * TILE + 4, '#4FD1C5');
+      this.drawBell(ctx, 20 * TILE + 10, 12 * TILE + 8);
+      this.drawFlowerVase(ctx, 23 * TILE + 6, 12 * TILE + 4);
+      this.drawBench(ctx, 15 * TILE, 21 * TILE);
+      this.drawFloorLamp(ctx, 15 * TILE + 16, 12 * TILE);
+
+      // 4. OpenCode Desk & Office Setup
       this.drawDesk(ctx, 5 * TILE, 6 * TILE, 3 * TILE, 1.5 * TILE, '#5A6B7C');
       this.drawMonitor(ctx, 6 * TILE + 8, 5.5 * TILE, '#00BBF9', 'code');
+      this.drawDeskClutter(ctx, 7 * TILE, 6 * TILE, 'opencode');
       this.drawChair(ctx, 6 * TILE + 8, 7.8 * TILE, '#2C3E50');
       this.drawWhiteboard(ctx, 3 * TILE, 2.5 * TILE, 4 * TILE, 'PIPELINES');
+      this.drawBookshelf(ctx, 3 * TILE, 2 * TILE, 2.5 * TILE);
       this.drawOfficeSign(ctx, 12.5 * TILE, 6 * TILE, 'OPENCODE', '#00A896');
 
-      // 3. Claude-Code Desk & Office Setup (Center North: x: 13..30, y: 1..8)
+      // 5. Claude-Code Desk & Office Setup
       this.drawDesk(ctx, 20 * TILE, 3 * TILE, 3 * TILE, 1.5 * TILE, '#A0522D');
       this.drawMonitor(ctx, 21 * TILE + 8, 2.5 * TILE, '#FB5607', 'writing');
+      this.drawDeskClutter(ctx, 22 * TILE, 3 * TILE, 'claude');
       this.drawChair(ctx, 21 * TILE + 8, 4.8 * TILE, '#8B4513');
       this.drawBookshelf(ctx, 15 * TILE, 2 * TILE, 3 * TILE);
       this.drawOfficeSign(ctx, 21 * TILE, 7.5 * TILE, 'CLAUDE-CODE', '#E07A5F');
 
-      // 4. Antigravity Desk & Office Setup (East North: x: 30..42, y: 1..12)
+      // 6. Antigravity Desk & Office Setup
       this.drawDesk(ctx, 36 * TILE, 6 * TILE, 3 * TILE, 1.5 * TILE, '#34495E');
       this.drawMonitor(ctx, 37 * TILE + 8, 5.5 * TILE, '#5AA9E6', 'orchestrator');
+      this.drawDeskClutter(ctx, 38 * TILE, 6 * TILE, 'antigravity');
       this.drawChair(ctx, 37 * TILE + 8, 7.8 * TILE, '#1B2631');
       this.drawServerRack(ctx, 40 * TILE, 2.5 * TILE);
       this.drawOfficeSign(ctx, 30.5 * TILE, 6 * TILE, 'ANTIGRAVITY', '#3D5A80');
 
-      // 5. Break Room (West South: x: 1..13, y: 12..22)
+      // 7. Break Room
       this.drawCoffeeCounter(ctx, 3 * TILE, 14 * TILE, 3.5 * TILE);
+      this.drawFridge(ctx, 2 * TILE + 2, 13 * TILE);
+      this.drawSnackShelf(ctx, 10 * TILE + 2, 13 * TILE);
       this.drawCafeTable(ctx, 7 * TILE, 18 * TILE);
-      this.drawWaterCooler(ctx, 10 * TILE, 14 * TILE);
+      this.drawWaterCooler(ctx, 10 * TILE, 15 * TILE);
 
-      // 6. Storage Room (East South: x: 30..42, y: 12..22)
+      // 8. Storage Room
       this.drawServerRack(ctx, 33 * TILE, 14 * TILE);
       this.drawServerRack(ctx, 35.5 * TILE, 14 * TILE);
       this.drawCrateStack(ctx, 38 * TILE, 18 * TILE);
       this.drawOfficeSign(ctx, 32 * TILE + 16, 21.5 * TILE, 'TRADING FLOOR', '#38B2AC');
 
-      // 7. Decorative Potted Plants in Lobby corners
-      this.drawPlant(ctx, 15 * TILE, 10 * TILE);
-      this.drawPlant(ctx, 28 * TILE, 10 * TILE);
-      this.drawPlant(ctx, 15 * TILE, 20 * TILE);
-      this.drawPlant(ctx, 28 * TILE, 20 * TILE);
+      // 9. Potted Plants
+      this.drawPlant(ctx, 14 * TILE, 10 * TILE);
+      this.drawPlant(ctx, 29 * TILE, 10 * TILE);
+      this.drawPlant(ctx, 14 * TILE, 21 * TILE);
+      this.drawPlant(ctx, 29 * TILE, 21 * TILE);
+      this.drawPlant(ctx, 11 * TILE, 2.5 * TILE); // OpenCode plant
+      this.drawPlant(ctx, 27 * TILE, 2.5 * TILE); // Claude plant
+      this.drawPlant(ctx, 32 * TILE, 2.5 * TILE); // Antigravity plant
+      this.drawPlant(ctx, 2 * TILE + 4, 21 * TILE); // Break room fern
 
-      // 8. The Archives Shelves & Project Boxes
+      // 10. The Archives Shelves, Finding Aids Table, Rolling Ladder
+      this.drawFindingAidsTable(ctx, 18 * TILE, 23 * TILE);
+      this.drawRollingLadder(ctx, 25 * TILE, 26 * TILE);
       this.drawArchiveShelves(ctx, map, camera);
+
+      // 11. String Lights Along Top Walls
+      this.drawStringLights(ctx, map);
     }
 
     drawDesk(ctx, x, y, w, h, woodColor) {
@@ -734,11 +871,20 @@
       ctx.fillStyle = screenColor;
       ctx.fillRect(x - 11, y - 5, 22, 12);
 
-      // Code lines on screen
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x - 9, y - 3, 12, 1.5);
-      ctx.fillRect(x - 9, y, 16, 1.5);
-      ctx.fillRect(x - 9, y + 3, 8, 1.5);
+      // Animated scrolling code lines
+      const now = performance.now() / 1000;
+      const scrollY = (now * 8) % 16;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - 11, y - 5, 22, 12);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      const widths = [12, 16, 8, 14, 10, 18, 9];
+      for (let i = 0; i < 7; i++) {
+        const ly = y - 5 + ((i * 4 - scrollY + 28) % 28) - 4;
+        ctx.fillRect(x - 9, ly, widths[i % widths.length], 1.5);
+      }
+      ctx.restore();
     }
 
     drawLaptop(ctx, x, y, screenColor) {
@@ -856,33 +1002,50 @@
     }
 
     drawCoffeeCounter(ctx, x, y, w) {
-      // Counter
+      // Countertop
       ctx.fillStyle = '#4A5568';
-      ctx.fillRect(x, y, w, 18);
+      ctx.fillRect(x, y, w, 20);
       ctx.strokeStyle = '#2D3748';
       ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, 18);
+      ctx.strokeRect(x, y, w, 20);
 
       // Espresso Machine
-      ctx.fillStyle = '#E2E8F0';
-      ctx.fillRect(x + 6, y - 6, 22, 16);
+      ctx.fillStyle = '#2D3748';
+      ctx.fillRect(x + 4, y - 8, 24, 18);
       ctx.strokeStyle = '#A0AEC0';
-      ctx.strokeRect(x + 6, y - 6, 22, 16);
+      ctx.strokeRect(x + 4, y - 8, 24, 18);
+      ctx.fillStyle = '#E2E8F0';
+      ctx.fillRect(x + 7, y - 5, 18, 6);
 
-      // Coffee pot with brown coffee
-      ctx.fillStyle = 'rgba(107, 70, 41, 0.85)';
-      ctx.fillRect(x + 34, y - 2, 12, 12);
+      // Coffee pot with dark roast
+      ctx.fillStyle = 'rgba(74, 44, 23, 0.9)';
+      ctx.fillRect(x + 32, y - 4, 12, 12);
       ctx.strokeStyle = '#E2E8F0';
-      ctx.strokeRect(x + 34, y - 2, 12, 12);
+      ctx.strokeRect(x + 32, y - 4, 12, 12);
+
+      // Electric Kettle
+      ctx.fillStyle = '#E2E8F0';
+      ctx.beginPath();
+      ctx.arc(x + 54, y + 4, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#4A5568';
+      ctx.stroke();
+      ctx.fillRect(x + 58, y + 1, 4, 3); // Kettle spout
 
       // Mugs
       ctx.fillStyle = '#E53E3E';
-      ctx.fillRect(x + 52, y + 2, 6, 8);
+      ctx.fillRect(x + 68, y + 2, 6, 8);
       ctx.fillStyle = '#3182CE';
-      ctx.fillRect(x + 62, y + 2, 6, 8);
+      ctx.fillRect(x + 78, y + 2, 6, 8);
     }
 
     drawCafeTable(ctx, x, y) {
+      // 4 Chairs around table
+      this.drawChair(ctx, x, y - 26, '#8B4513');
+      this.drawChair(ctx, x, y + 26, '#8B4513');
+      this.drawChair(ctx, x - 26, y, '#8B4513');
+      this.drawChair(ctx, x + 26, y, '#8B4513');
+
       // Table shadow
       ctx.fillStyle = 'rgba(20, 25, 35, 0.2)';
       ctx.beginPath();
@@ -904,6 +1067,308 @@
       ctx.strokeStyle = '#E53E3E';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x - 8, y - 8, 16, 16);
+    }
+
+    drawFridge(ctx, x, y) {
+      // Brushed steel tall fridge
+      ctx.fillStyle = '#CBD5E0';
+      ctx.fillRect(x, y, 26, 36);
+      ctx.strokeStyle = '#718096';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 26, 36);
+
+      // Freezer split line
+      ctx.strokeStyle = '#4A5568';
+      ctx.beginPath();
+      ctx.moveTo(x, y + 14);
+      ctx.lineTo(x + 26, y + 14);
+      ctx.stroke();
+
+      // Handles
+      ctx.fillStyle = '#4A5568';
+      ctx.fillRect(x + 20, y + 4, 3, 6);
+      ctx.fillRect(x + 20, y + 18, 3, 10);
+    }
+
+    drawSnackShelf(ctx, x, y) {
+      ctx.fillStyle = '#8B5A2B';
+      ctx.fillRect(x, y, 28, 32);
+      ctx.strokeStyle = '#4A2A0C';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 28, 32);
+
+      // Shelves with snack packets
+      const chipColors = ['#E53E3E', '#DD6B20', '#38A169', '#3182CE', '#D69E2E'];
+      for (let s = 0; s < 3; s++) {
+        const sy = y + 4 + s * 10;
+        ctx.strokeStyle = '#4A2A0C';
+        ctx.beginPath();
+        ctx.moveTo(x, sy + 7);
+        ctx.lineTo(x + 28, sy + 7);
+        ctx.stroke();
+
+        for (let b = 0; b < 3; b++) {
+          ctx.fillStyle = chipColors[(s * 3 + b) % chipColors.length];
+          ctx.fillRect(x + 3 + b * 8, sy, 6, 7);
+        }
+      }
+    }
+
+    drawBench(ctx, x, y) {
+      // Cushioned wood bench
+      ctx.fillStyle = '#8B5A2B';
+      ctx.fillRect(x, y + 4, 60, 18);
+      ctx.strokeStyle = '#4A2A0C';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y + 4, 60, 18);
+
+      // Cushion on top
+      ctx.fillStyle = '#319795';
+      ctx.fillRect(x + 4, y + 6, 52, 12);
+      ctx.strokeStyle = '#234E52';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 4, y + 6, 52, 12);
+    }
+
+    drawFramedArt(ctx, x, y, variant) {
+      ctx.fillStyle = '#8B5A2B';
+      ctx.fillRect(x, y, 24, 20);
+      ctx.strokeStyle = '#D69E2E';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 24, 20);
+
+      if (variant === 'mountain') {
+        ctx.fillStyle = '#81E6D9';
+        ctx.fillRect(x + 2, y + 2, 20, 16);
+        ctx.fillStyle = '#2C7A7B';
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + 17);
+        ctx.lineTo(x + 10, y + 6);
+        ctx.lineTo(x + 16, y + 17);
+        ctx.fill();
+        ctx.fillStyle = '#FFD166';
+        ctx.beginPath();
+        ctx.arc(x + 17, y + 6, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#1A202C';
+        ctx.fillRect(x + 2, y + 2, 20, 16);
+        ctx.fillStyle = '#9F7AEA';
+        ctx.fillRect(x + 5, y + 5, 8, 8);
+        ctx.fillStyle = '#38B2AC';
+        ctx.fillRect(x + 11, y + 9, 8, 7);
+      }
+    }
+
+    drawFloorLamp(ctx, x, y) {
+      ctx.fillStyle = '#D69E2E';
+      ctx.beginPath();
+      ctx.arc(x, y + 16, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#B7791F';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 16);
+      ctx.lineTo(x, y - 6);
+      ctx.stroke();
+
+      ctx.fillStyle = '#FEFCBF';
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y);
+      ctx.lineTo(x - 6, y - 8);
+      ctx.lineTo(x + 6, y - 8);
+      ctx.lineTo(x + 9, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#D69E2E';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    drawDoorMat(ctx, x, y, variant) {
+      ctx.fillStyle = '#C05621';
+      if (variant === 'coir') ctx.fillStyle = '#B7791F';
+      else if (variant === 'mint') ctx.fillStyle = '#319795';
+      else if (variant === 'peach') ctx.fillStyle = '#DD6B20';
+      else if (variant === 'slate') ctx.fillStyle = '#4A5568';
+      else if (variant === 'teal') ctx.fillStyle = '#285E61';
+
+      ctx.fillRect(x + 2, y + 6, 28, 18);
+      ctx.strokeStyle = '#1A202C';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 2, y + 6, 28, 18);
+
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.lineWidth = 1;
+      for (let lx = x + 6; lx < x + 26; lx += 4) {
+        ctx.beginPath();
+        ctx.moveTo(lx, y + 8);
+        ctx.lineTo(lx, y + 22);
+        ctx.stroke();
+      }
+    }
+
+    drawOfficeRug(ctx, x, y, w, h, color) {
+      ctx.fillStyle = color;
+      this.drawRoundedRect(ctx, x, y, w, h, 8, true, false);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1.5;
+      this.drawRoundedRect(ctx, x + 2, y + 2, w - 4, h - 4, 6, false, true);
+    }
+
+    drawDeskClutter(ctx, x, y, variant) {
+      ctx.fillStyle = variant === 'opencode' ? '#3182CE' : (variant === 'claude' ? '#E53E3E' : '#38A169');
+      ctx.fillRect(x + 2, y + 6, 5, 6);
+
+      ctx.fillStyle = '#FEFCBF';
+      ctx.fillRect(x + 10, y + 5, 6, 6);
+      ctx.strokeStyle = '#D69E2E';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x + 10, y + 5, 6, 6);
+
+      ctx.fillStyle = '#EDF2F7';
+      ctx.fillRect(x + 18, y + 4, 8, 10);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x + 19, y + 3, 8, 10);
+      ctx.strokeStyle = '#A0AEC0';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x + 19, y + 3, 8, 10);
+    }
+
+    drawWallPoster(ctx, x, y, variant) {
+      ctx.fillStyle = '#1A202C';
+      ctx.fillRect(x, y, 20, 16);
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, 20, 16);
+
+      if (variant === 'pixel_art') {
+        ctx.fillStyle = '#00BBF9';
+        ctx.fillRect(x + 4, y + 4, 12, 8);
+        ctx.fillStyle = '#FFD166';
+        ctx.fillRect(x + 8, y + 6, 4, 4);
+      } else if (variant === 'neural') {
+        ctx.fillStyle = '#FF5E7E';
+        ctx.beginPath();
+        ctx.arc(x + 6, y + 8, 2, 0, Math.PI * 2);
+        ctx.arc(x + 14, y + 5, 2, 0, Math.PI * 2);
+        ctx.arc(x + 14, y + 11, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#FED7D7';
+        ctx.beginPath();
+        ctx.moveTo(x + 6, y + 8);
+        ctx.lineTo(x + 14, y + 5);
+        ctx.moveTo(x + 6, y + 8);
+        ctx.lineTo(x + 14, y + 11);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#3D5A80';
+        ctx.fillRect(x + 2, y + 2, 16, 12);
+        ctx.fillStyle = '#E0FBFC';
+        ctx.beginPath();
+        ctx.arc(x + 10, y + 8, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    drawFindingAidsTable(ctx, x, y) {
+      ctx.fillStyle = '#7B341E';
+      ctx.fillRect(x, y, 30, 24);
+      ctx.strokeStyle = '#3C180A';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 30, 24);
+
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 3; c++) {
+          ctx.fillStyle = '#9C4221';
+          ctx.fillRect(x + 3 + c * 9, y + 4 + r * 9, 7, 7);
+          ctx.fillStyle = '#D69E2E';
+          ctx.fillRect(x + 5 + c * 9, y + 7 + r * 9, 3, 1.5);
+        }
+      }
+
+      ctx.fillStyle = '#2D3748';
+      ctx.fillRect(x + 2, y + 21, 26, 7);
+      ctx.fillStyle = '#FFD54F';
+      ctx.font = 'bold 5.5px sans-serif';
+      ctx.fillText('FINDING AIDS', x + 3, y + 26);
+    }
+
+    drawRollingLadder(ctx, x, y) {
+      ctx.save();
+      ctx.strokeStyle = '#D69E2E';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 6, y + 44);
+      ctx.moveTo(x + 14, y);
+      ctx.lineTo(x + 20, y + 44);
+      ctx.stroke();
+
+      for (let i = 0; i < 5; i++) {
+        const t = (i + 1) / 6;
+        ctx.beginPath();
+        ctx.moveTo(x + t * 6, y + t * 44);
+        ctx.lineTo(x + 14 + t * 6, y + t * 44);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#2D3748';
+      ctx.beginPath();
+      ctx.arc(x + 6, y + 45, 2.5, 0, Math.PI * 2);
+      ctx.arc(x + 20, y + 45, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawStringLights(ctx, map) {
+      const now = performance.now();
+      const rooms = [
+        { x0: 14, x1: 29, y: 2 },  // Claude
+        { x0: 2, x1: 12, y: 2 },   // OpenCode
+        { x0: 31, x1: 41, y: 2 },  // Antigravity
+        { x0: 14, x1: 29, y: 9 },  // Lobby
+        { x0: 2, x1: 12, y: 13 },  // Breakroom
+        { x0: 31, x1: 41, y: 13 }  // Storage
+      ];
+
+      for (const r of rooms) {
+        const startX = r.x0 * 32;
+        const endX = r.x1 * 32 + 32;
+        const py = r.y * 32 + 4;
+
+        ctx.strokeStyle = 'rgba(60, 60, 60, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(startX, py);
+
+        const segments = Math.max(1, Math.floor((endX - startX) / 24));
+        for (let s = 0; s < segments; s++) {
+          const segX0 = startX + s * 24;
+          const segX1 = Math.min(endX, segX0 + 24);
+          const midX = (segX0 + segX1) / 2;
+          const dip = 3.5;
+          ctx.quadraticCurveTo(midX, py + dip, segX1, py);
+        }
+        ctx.stroke();
+
+        for (let px = startX + 12; px < endX; px += 24) {
+          const sway = Math.sin(now / 700 + px * 0.2) * 1.0;
+          const ly = py + 3 + sway;
+
+          ctx.fillStyle = 'rgba(255, 220, 130, 0.35)';
+          ctx.beginPath();
+          ctx.arc(px, ly, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#FFF9DB';
+          ctx.beginPath();
+          ctx.arc(px, ly, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     drawWaterCooler(ctx, x, y) {
@@ -1338,24 +1803,48 @@
     // -------------------------------------------------------------------------
     // Name Tags & Speech Bubbles
     // -------------------------------------------------------------------------
-    renderNameTag(ctx, x, y, name, color = '#FFFFFF', alpha = 1.0) {
+    renderNameTag(ctx, x, y, name, color = '#FFFFFF', alpha = 1.0, subText = null, subColor = '#A0AEC0') {
       ctx.save();
       if (alpha !== undefined && alpha !== 1.0) {
         ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
       }
-      ctx.font = 'bold 9px "Segoe UI Rounded", "Nunito", sans-serif';
       ctx.textAlign = 'center';
       const text = (name || 'Visitor').substring(0, 16);
-      const metrics = ctx.measureText(text);
-      const tw = metrics.width + 10;
-      const th = 14;
 
-      // Dark background pill
-      ctx.fillStyle = 'rgba(23, 25, 35, 0.78)';
-      this.drawRoundedRect(ctx, x - tw / 2, y - 32, tw, th, 4, true, false);
+      if (subText) {
+        ctx.font = 'bold 9px "Segoe UI Rounded", "Nunito", sans-serif';
+        const mainWidth = ctx.measureText(text).width;
+        ctx.font = '8px "Segoe UI Rounded", "Nunito", sans-serif';
+        const subWidth = ctx.measureText(subText).width;
+        const tw = Math.max(mainWidth, subWidth) + 12;
+        const th = 24;
 
-      ctx.fillStyle = color;
-      ctx.fillText(text, x, y - 22);
+        // Dark background pill
+        ctx.fillStyle = 'rgba(23, 25, 35, 0.84)';
+        this.drawRoundedRect(ctx, x - tw / 2, y - 42, tw, th, 4, true, false);
+
+        // Name
+        ctx.font = 'bold 9px "Segoe UI Rounded", "Nunito", sans-serif';
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y - 30);
+
+        // Status subtext
+        ctx.font = '8px "Segoe UI Rounded", "Nunito", sans-serif';
+        ctx.fillStyle = subColor;
+        ctx.fillText(subText, x, y - 20);
+      } else {
+        ctx.font = 'bold 9px "Segoe UI Rounded", "Nunito", sans-serif';
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width + 10;
+        const th = 14;
+
+        // Dark background pill
+        ctx.fillStyle = 'rgba(23, 25, 35, 0.78)';
+        this.drawRoundedRect(ctx, x - tw / 2, y - 32, tw, th, 4, true, false);
+
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y - 22);
+      }
       ctx.restore();
     }
 

@@ -4,12 +4,14 @@ const { startServer, server } = require('../server.js');
 async function runTest() {
   console.log('--- Starting Bridge Test ---');
 
-  // If server is not already listening, start it on port 8904
+  const PORT = parseInt(process.env.PORT, 10) || 8904;
+
+  // If server is not already listening, start it on target port
   let testServer = server;
   let weStartedServer = false;
   if (!server.listening) {
     try {
-      await startServer(8904, '127.0.0.1');
+      await startServer(PORT, '127.0.0.1');
       weStartedServer = true;
     } catch (err) {
       if (err.code !== 'EADDRINUSE') {
@@ -19,7 +21,7 @@ async function runTest() {
     }
   }
 
-  const WS_URL = 'ws://127.0.0.1:8904/bridge';
+  const WS_URL = `ws://127.0.0.1:${PORT}/bridge`;
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {

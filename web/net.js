@@ -32,15 +32,9 @@
 
       this.ws.onopen = () => {
         this.connected = true;
-        // Send join packet with local player info
-        const player = this.game.player;
-        this.send({
-          type: 'join',
-          name: player.name,
-          cosmetics: player.cosmetics,
-          x: player.x,
-          y: player.y
-        });
+        if (this.game.gameStarted) {
+          this.sendJoin();
+        }
       };
 
       this.ws.onmessage = (event) => {
@@ -95,6 +89,18 @@
       this.send({
         type: 'equip',
         cosmetics: cosmetics
+      });
+    }
+
+    sendJoin() {
+      const player = this.game.player;
+      this.send({
+        type: 'join',
+        profile: player.profile || 'nathan',
+        name: player.name || 'Nathan',
+        cosmetics: player.cosmetics,
+        x: player.x,
+        y: player.y
       });
     }
 

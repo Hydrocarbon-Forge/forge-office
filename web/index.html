@@ -16,13 +16,28 @@
   <div id="hudOverlay">
     <div class="hud-left">
       <div class="hud-title">FORGE OFFICE</div>
-      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • N for Lights</span></div>
+      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights</span></div>
+      <div id="presenceChip" class="hud-chip"><span class="status-dot gray"></span> <span>Checking presence...</span></div>
     </div>
     <div class="hud-right">
+      <button id="clockBtn" class="hud-btn">⏱️ CLOCK (K)</button>
+      <button id="minimapBtn" class="hud-btn">🗺️ MAP (B)</button>
       <button id="lightsBtn" class="hud-btn">💡 LIGHTS (N)</button>
       <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
       <button id="muteBtn" class="hud-btn">🔊 SOUND</button>
     </div>
+  </div>
+
+  <!-- Minimap Panel (B key) -->
+  <div id="minimapPanel" class="minimap-panel">
+    <div class="minimap-header">
+      <span class="minimap-title">OFFICE MAP</span>
+      <button id="toggleMinimapBtn" class="minimap-close-btn" title="Toggle Minimap (B)">✕</button>
+    </div>
+    <div class="minimap-body">
+      <canvas id="minimapCanvas" width="180" height="164"></canvas>
+    </div>
+    <div class="minimap-hint">Click a room to navigate</div>
   </div>
 
   <!-- Start Screen & Join Setup Modal -->
@@ -33,13 +48,40 @@
         <div class="start-subtitle">Hydrocarbon Forge Virtual LAN Headquarters</div>
       </div>
 
-      <div class="start-preview-box">
-        <canvas id="startAvatarPreview" width="80" height="90"></canvas>
+      <div class="profile-cards-section">
+        <label class="section-label">CHOOSE IDENTITY</label>
+        <div class="profile-cards-row">
+          <div class="profile-card selected" id="cardNathan" data-profile="nathan">
+            <div class="profile-avatar-preview">
+              <canvas id="nathanAvatarPreview" width="60" height="70"></canvas>
+            </div>
+            <div class="profile-card-title">Nathan</div>
+            <div class="profile-card-desc">Teal + Cap</div>
+          </div>
+          <div class="profile-card" id="cardGavin" data-profile="gavin">
+            <div class="profile-avatar-preview">
+              <canvas id="gavinAvatarPreview" width="60" height="70"></canvas>
+            </div>
+            <div class="profile-card-title">Gavin</div>
+            <div class="profile-card-desc">Orange + Beanie</div>
+          </div>
+          <div class="profile-card" id="cardGuest" data-profile="guest">
+            <div class="profile-avatar-preview">
+              <canvas id="guestAvatarPreview" width="60" height="70"></canvas>
+            </div>
+            <div class="profile-card-title">Guest</div>
+            <div class="profile-card-desc">Custom Name</div>
+          </div>
+        </div>
       </div>
 
-      <div class="name-input-group">
-        <label for="playerNameInput">Your Agent Name</label>
-        <input type="text" id="playerNameInput" class="name-input" value="Agent" maxlength="16" autocomplete="off" spellcheck="false">
+      <div id="guestNameInputGroup" class="name-input-group hidden">
+        <label for="playerNameInput">Guest Name</label>
+        <input type="text" id="playerNameInput" class="name-input" value="Guest" maxlength="16" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="start-preview-box">
+        <canvas id="startAvatarPreview" width="80" height="90"></canvas>
       </div>
 
       <div id="startPickers"></div>
@@ -51,7 +93,76 @@
         </label>
       </div>
 
-      <button id="enterOfficeBtn" class="enter-btn">CLICK TO ENTER OFFICE</button>
+      <button id="enterOfficeBtn" class="enter-btn">ENTER OFFICE</button>
+    </div>
+  </div>
+
+  <!-- Clock Stats Modal (K key) -->
+  <div id="clockModal" class="modal-overlay hidden">
+    <div class="modal-card clock-card">
+      <div class="modal-header">
+        <h2>⏱️ CLOCK-IN & PRESENCE STATS</h2>
+        <button id="closeClockBtn" class="close-btn">✕</button>
+      </div>
+
+      <div class="clock-stats-container">
+        <!-- Nathan Card -->
+        <div class="clock-profile-block" id="nathanClockBlock">
+          <div class="clock-profile-header">
+            <div class="clock-avatar-badge" style="background: #00BBF9;"></div>
+            <div class="clock-profile-name">Nathan</div>
+            <div class="clock-status-tag" id="nathanOfficeStatus"><span class="status-dot"></span> <span class="status-text">--</span></div>
+          </div>
+          <div class="clock-discord-sub" id="nathanDiscordStatus">Discord: checking...</div>
+          <div class="clock-metrics-grid">
+            <div class="metric-item">
+              <div class="metric-label">TOTAL HOURS</div>
+              <div class="metric-val" id="nathanTotalH">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">SESSIONS</div>
+              <div class="metric-val" id="nathanSessions">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">LONGEST</div>
+              <div class="metric-val" id="nathanLongestH">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">TOGETHER</div>
+              <div class="metric-val" id="nathanTogether">--</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gavin Card -->
+        <div class="clock-profile-block" id="gavinClockBlock">
+          <div class="clock-profile-header">
+            <div class="clock-avatar-badge" style="background: #FB5607;"></div>
+            <div class="clock-profile-name">Gavin</div>
+            <div class="clock-status-tag" id="gavinOfficeStatus"><span class="status-dot"></span> <span class="status-text">--</span></div>
+          </div>
+          <div class="clock-discord-sub" id="gavinDiscordStatus">Discord: checking...</div>
+          <div class="clock-metrics-grid">
+            <div class="metric-item">
+              <div class="metric-label">TOTAL HOURS</div>
+              <div class="metric-val" id="gavinTotalH">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">SESSIONS</div>
+              <div class="metric-val" id="gavinSessions">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">LONGEST</div>
+              <div class="metric-val" id="gavinLongestH">--</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">TOGETHER</div>
+              <div class="metric-val" id="gavinTogether">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="clock-footer-hint">Press K or Esc to close • Syncs automatically every 10s</div>
     </div>
   </div>
 

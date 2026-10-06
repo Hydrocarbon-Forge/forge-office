@@ -26,6 +26,13 @@ const MIME_TYPES = {
 // Seed for deterministic office agent behavior (day-based + fixed offset)
 const AGENTS_SEED = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) * 10007 + 4242;
 
+// Presence, clock stats, and discord service
+const { ClockManager } = require('./clock-manager.js');
+const { discordPresenceService } = require('./discord-presence.js');
+
+const clockManager = new ClockManager();
+discordPresenceService.start();
+
 // ---------------------------------------------------------------------------
 // Static file & API Proxy HTTP server
 // ---------------------------------------------------------------------------
@@ -33,7 +40,44 @@ const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname || '/';
 
-  // 1. Proxy /api/* -> http://127.0.0.1:8903/api/*
+  // 1. Office Presence endpoint
+  if (pathname === '/api/office/presence') {
+    const discordPres = discordPresenceService.getPresence();
+    const presenceData = clockManager.getPresenceAndStats(discordPres);
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end(JSON.stringify(presenceData));
+    return;
+  }
+
+  // Office Profile endpoints
+  if (pathname === '/api/office/profile') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const saved = clockManager.upsertProfile(parsed);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, profile: saved }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }));
+        }
+      });
+      return;
+    } else {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(clockManager.profilesData));
+      return;
+    }
+  }
+
+  // 2. Proxy /api/* -> http://127.0.0.1:8903/api/*
   if (pathname.startsWith('/api/')) {
     const proxyReq = http.request(
       {
@@ -212,7 +256,8 @@ server.on('upgrade', (req, socket, head) => {
     dir: 'idle',
     facing: 1,
     lastSeen: Date.now(),
-    joined: false
+    joined: false,
+    profile: 'guest'
   };
 
   clients.set(clientId, client);
@@ -301,6 +346,9 @@ server.on('upgrade', (req, socket, head) => {
     if (clients.has(clientId)) {
       clients.delete(clientId);
       if (client.joined) {
+        if (client.profile && client.profile !== 'guest') {
+          clockManager.clockOut(client.profile, clientId);
+        }
         broadcast({ type: 'player-leave', id: clientId }, clientId);
       }
     }
@@ -324,6 +372,16 @@ function handleClientMessage(client, msg) {
       if (typeof msg.name === 'string' && msg.name.trim()) {
         client.name = msg.name.trim().substring(0, 16);
       }
+      if (typeof msg.profile === 'string' && msg.profile.trim()) {
+        client.profile = msg.profile.trim().toLowerCase();
+      } else {
+        const lowerName = (client.name || '').toLowerCase();
+        if (lowerName === 'nathan' || lowerName === 'gavin') {
+          client.profile = lowerName;
+        } else {
+          client.profile = 'guest';
+        }
+      }
       if (msg.cosmetics && typeof msg.cosmetics === 'object') {
         client.cosmetics = {
           color: String(msg.cosmetics.color || 'coral'),
@@ -336,6 +394,16 @@ function handleClientMessage(client, msg) {
       if (typeof msg.y === 'number') client.y = msg.y;
       client.joined = true;
 
+      // Clock in & upsert profile
+      if (client.profile && client.profile !== 'guest') {
+        clockManager.clockIn(client.profile, client.id, now);
+        clockManager.upsertProfile({
+          profile: client.profile,
+          name: client.name,
+          cosmetics: client.cosmetics
+        });
+      }
+
       // Prepare list of other players
       const otherPlayers = [];
       for (const [id, c] of clients) {
@@ -343,6 +411,7 @@ function handleClientMessage(client, msg) {
           otherPlayers.push({
             id: c.id,
             name: c.name,
+            profile: c.profile,
             cosmetics: c.cosmetics,
             x: c.x,
             y: c.y,
@@ -366,6 +435,7 @@ function handleClientMessage(client, msg) {
           type: 'player-join',
           id: client.id,
           name: client.name,
+          profile: client.profile,
           cosmetics: client.cosmetics,
           x: client.x,
           y: client.y,
@@ -406,6 +476,13 @@ function handleClientMessage(client, msg) {
           trail: String(msg.cosmetics.trail || client.cosmetics.trail),
           face: String(msg.cosmetics.face || client.cosmetics.face)
         };
+        if (client.profile && client.profile !== 'guest') {
+          clockManager.upsertProfile({
+            profile: client.profile,
+            name: client.name,
+            cosmetics: client.cosmetics
+          });
+        }
         broadcast(
           {
             type: 'equip',
@@ -451,6 +528,9 @@ const HEARTBEAT_INTERVAL = setInterval(() => {
       client.socket.destroy();
       clients.delete(id);
       if (client.joined) {
+        if (client.profile && client.profile !== 'guest') {
+          clockManager.clockOut(client.profile, id, now);
+        }
         broadcast({ type: 'player-leave', id });
       }
     } else {
@@ -486,4 +566,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { server, startServer, PORT, HOST };
+module.exports = { server, startServer, PORT, HOST, clockManager, discordPresenceService };

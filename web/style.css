@@ -502,3 +502,294 @@ body, html {
     opacity: 1;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Feature 3 & 4: Profile Selection Cards                                     */
+/* -------------------------------------------------------------------------- */
+.profile-cards-section {
+  margin-top: 14px;
+  width: 100%;
+}
+
+.section-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #A0AEC0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.profile-cards-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.profile-card {
+  flex: 1;
+  max-width: 110px;
+  background: #2D3748;
+  border: 2px solid #4A5568;
+  border-radius: 12px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 0 #1A202C;
+}
+
+.profile-card:hover {
+  background: #39455A;
+  border-color: #718096;
+}
+
+.profile-card.selected {
+  background: #1A365D;
+  border-color: #63B3ED;
+  box-shadow: 0 4px 0 #0D1D3A, 0 0 12px rgba(99, 179, 237, 0.4);
+  transform: translateY(-2px);
+}
+
+.profile-avatar-preview {
+  width: 60px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-card-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-top: 4px;
+}
+
+.profile-card-desc {
+  font-size: 10px;
+  font-weight: 600;
+  color: #A0AEC0;
+  margin-top: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* HUD Presence Chip & Status Dots                                            */
+/* -------------------------------------------------------------------------- */
+.hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(23, 25, 35, 0.85);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #E2E8F0;
+  margin-top: 5px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #A0AEC0;
+}
+
+.status-dot.green {
+  background: #48BB78;
+  box-shadow: 0 0 6px #48BB78;
+}
+
+.status-dot.amber {
+  background: #ED8936;
+  box-shadow: 0 0 6px #ED8936;
+}
+
+.status-dot.gray {
+  background: #718096;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Clock Modal (K key)                                                        */
+/* -------------------------------------------------------------------------- */
+.clock-card {
+  max-width: 520px;
+  width: 95%;
+  background: #1A202C;
+}
+
+.clock-stats-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.clock-profile-block {
+  background: #2D3748;
+  border: 2px solid #4A5568;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 3px 0 #1A202C;
+}
+
+.clock-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.clock-avatar-badge {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+.clock-profile-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: #FFFFFF;
+}
+
+.clock-status-tag {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1A202C;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #EDF2F7;
+}
+
+.clock-discord-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #CBD5E0;
+  margin-top: 4px;
+  margin-left: 24px;
+}
+
+.clock-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.metric-item {
+  background: #1A202C;
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: #A0AEC0;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.metric-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: #63B3ED;
+  font-family: monospace;
+}
+
+.clock-footer-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #718096;
+  margin-top: 14px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Feature 5: Minimap Panel                                                   */
+/* -------------------------------------------------------------------------- */
+.minimap-panel {
+  position: fixed;
+  top: 75px;
+  right: 16px;
+  width: 180px;
+  background: rgba(20, 24, 33, 0.90);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: 90;
+  pointer-events: auto;
+  overflow: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.minimap-panel.collapsed {
+  transform: translateX(220px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.minimap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(30, 36, 48, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.minimap-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #CBD5E0;
+}
+
+.minimap-close-btn {
+  background: none;
+  border: none;
+  color: #A0AEC0;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.minimap-close-btn:hover {
+  color: white;
+}
+
+.minimap-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px;
+}
+
+#minimapCanvas {
+  display: block;
+  border-radius: 6px;
+  cursor: crosshair;
+}
+
+.minimap-hint {
+  font-size: 9px;
+  font-weight: 600;
+  color: #718096;
+  text-align: center;
+  padding: 4px;
+  background: rgba(15, 18, 26, 0.7);
+}
+
