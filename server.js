@@ -1,0 +1,489 @@
+// server.js — Forge Office static file server, /api proxy, and hand-rolled WebSocket bridge
+const http = require('node:http');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const url = require('node:url');
+
+const PORT = parseInt(process.env.PORT, 10) || 8904;
+const HOST = '0.0.0.0';
+const CONSOLE_API_HOST = '127.0.0.1';
+const CONSOLE_API_PORT = 8903;
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8'
+};
+
+// Seed for deterministic office agent behavior (day-based + fixed offset)
+const AGENTS_SEED = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) * 10007 + 4242;
+
+// ---------------------------------------------------------------------------
+// Static file & API Proxy HTTP server
+// ---------------------------------------------------------------------------
+const server = http.createServer((req, res) => {
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname || '/';
+
+  // 1. Proxy /api/* -> http://127.0.0.1:8903/api/*
+  if (pathname.startsWith('/api/')) {
+    const proxyReq = http.request(
+      {
+        host: CONSOLE_API_HOST,
+        port: CONSOLE_API_PORT,
+        path: req.url,
+        method: req.method,
+        headers: {
+          ...req.headers,
+          host: `${CONSOLE_API_HOST}:${CONSOLE_API_PORT}`
+        }
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+      }
+    );
+
+    proxyReq.on('error', (err) => {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'Console API offline', detail: err.message }));
+    });
+
+    req.pipe(proxyReq);
+    return;
+  }
+
+  // 2. Static files
+  let safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, '');
+  if (safePath === '/' || safePath === '') {
+    safePath = '/index.html';
+  }
+
+  let filePath = path.join(__dirname, 'web', safePath);
+
+  // If request asks for data/*, look in data folder
+  if (safePath.startsWith('/data/') || safePath.startsWith('data/')) {
+    filePath = path.join(__dirname, safePath);
+  }
+
+  // Fallback check: if not in web, check root
+  if (!fs.existsSync(filePath)) {
+    const rootPath = path.join(__dirname, safePath);
+    if (fs.existsSync(rootPath) && fs.statSync(rootPath).isFile()) {
+      filePath = rootPath;
+    }
+  }
+
+  fs.stat(filePath, (err, stats) => {
+    if (err || !stats.isFile()) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('404 Not Found');
+      return;
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': stats.size,
+      'Cache-Control': 'no-cache'
+    });
+
+    fs.createReadStream(filePath).pipe(res);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hand-rolled WebSocket Implementation (RFC 6455)
+// ---------------------------------------------------------------------------
+const clients = new Map(); // id -> ClientState
+
+function makeFrame(payloadStr, opcode = 0x01) {
+  const payloadBuf = Buffer.from(payloadStr, 'utf8');
+  const len = payloadBuf.length;
+  let header;
+
+  if (len <= 125) {
+    header = Buffer.alloc(2);
+    header[0] = 0x80 | (opcode & 0x0f); // FIN + opcode
+    header[1] = len; // unmasked
+  } else if (len <= 65535) {
+    header = Buffer.alloc(4);
+    header[0] = 0x80 | (opcode & 0x0f);
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x80 | (opcode & 0x0f);
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
+
+  return Buffer.concat([header, payloadBuf]);
+}
+
+function makeCloseFrame(code = 1000) {
+  const buf = Buffer.alloc(4);
+  buf[0] = 0x88; // FIN + Close
+  buf[1] = 2; // length 2
+  buf.writeUInt16BE(code, 2);
+  return buf;
+}
+
+function makePongFrame(payloadBuf = Buffer.alloc(0)) {
+  const len = Math.min(payloadBuf.length, 125);
+  const header = Buffer.alloc(2);
+  header[0] = 0x8a; // FIN + Pong
+  header[1] = len;
+  return Buffer.concat([header, payloadBuf.subarray(0, len)]);
+}
+
+function broadcast(msgObj, excludeId = null) {
+  const frame = makeFrame(JSON.stringify(msgObj));
+  for (const [id, client] of clients) {
+    if (id !== excludeId && !client.socket.destroyed) {
+      try {
+        client.socket.write(frame);
+      } catch {
+        // ignore socket write errors; cleanup happens in socket close
+      }
+    }
+  }
+}
+
+function sendTo(socket, msgObj) {
+  if (!socket.destroyed) {
+    try {
+      socket.write(makeFrame(JSON.stringify(msgObj)));
+    } catch {
+      // ignore
+    }
+  }
+}
+
+server.on('upgrade', (req, socket, head) => {
+  const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+  if (pathname !== '/bridge') {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  const secKey = req.headers['sec-websocket-key'];
+  if (!secKey) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+  const acceptKey = crypto
+    .createHash('sha1')
+    .update(secKey + GUID)
+    .digest('base64');
+
+  const headers = [
+    'HTTP/1.1 101 Switching Protocols',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Accept: ${acceptKey}`,
+    '\r\n'
+  ];
+
+  socket.write(headers.join('\r\n'));
+
+  const clientId = 'p_' + Math.random().toString(36).substring(2, 9);
+  const client = {
+    id: clientId,
+    socket,
+    name: 'Visitor',
+    cosmetics: { color: 'coral', hat: 'none', trail: 'none', face: 'classic' },
+    x: 21 * 32,
+    y: 17 * 32,
+    dir: 'idle',
+    facing: 1,
+    lastSeen: Date.now(),
+    joined: false
+  };
+
+  clients.set(clientId, client);
+
+  let rxBuffer = head && head.length > 0 ? head : Buffer.alloc(0);
+
+  socket.on('data', (chunk) => {
+    client.lastSeen = Date.now();
+    rxBuffer = Buffer.concat([rxBuffer, chunk]);
+
+    while (rxBuffer.length >= 2) {
+      const b0 = rxBuffer[0];
+      const b1 = rxBuffer[1];
+
+      const fin = (b0 & 0x80) !== 0;
+      const opcode = b0 & 0x0f;
+      const masked = (b1 & 0x80) !== 0;
+      let payloadLen = b1 & 0x7f;
+
+      let offset = 2;
+      if (payloadLen === 126) {
+        if (rxBuffer.length < 4) break;
+        payloadLen = rxBuffer.readUInt16BE(2);
+        offset = 4;
+      } else if (payloadLen === 127) {
+        if (rxBuffer.length < 10) break;
+        payloadLen = Number(rxBuffer.readBigUInt64BE(2));
+        offset = 10;
+      }
+
+      const maskKeyLen = masked ? 4 : 0;
+      if (rxBuffer.length < offset + maskKeyLen + payloadLen) {
+        // Incomplete frame, wait for more data
+        break;
+      }
+
+      let maskKey = null;
+      if (masked) {
+        maskKey = rxBuffer.subarray(offset, offset + 4);
+        offset += 4;
+      }
+
+      const payload = rxBuffer.subarray(offset, offset + payloadLen);
+      const unmasked = Buffer.alloc(payloadLen);
+
+      if (masked && maskKey) {
+        for (let i = 0; i < payloadLen; i++) {
+          unmasked[i] = payload[i] ^ maskKey[i % 4];
+        }
+      } else {
+        payload.copy(unmasked);
+      }
+
+      rxBuffer = rxBuffer.subarray(offset + payloadLen);
+
+      // Handle Opcode
+      if (opcode === 0x08) {
+        // Close frame
+        try {
+          socket.write(makeCloseFrame());
+        } catch {}
+        socket.destroy();
+        return;
+      } else if (opcode === 0x09) {
+        // Ping -> Pong
+        try {
+          socket.write(makePongFrame(unmasked));
+        } catch {}
+      } else if (opcode === 0x0a) {
+        // Pong
+        client.lastSeen = Date.now();
+      } else if (opcode === 0x01) {
+        // Text message
+        try {
+          const text = unmasked.toString('utf8');
+          const msg = JSON.parse(text);
+          handleClientMessage(client, msg);
+        } catch (err) {
+          // Bad JSON or parse error, ignore
+        }
+      }
+    }
+  });
+
+  const cleanup = () => {
+    if (clients.has(clientId)) {
+      clients.delete(clientId);
+      if (client.joined) {
+        broadcast({ type: 'player-leave', id: clientId }, clientId);
+      }
+    }
+  };
+
+  socket.on('end', cleanup);
+  socket.on('close', cleanup);
+  socket.on('error', () => {
+    socket.destroy();
+    cleanup();
+  });
+});
+
+function handleClientMessage(client, msg) {
+  if (!msg || typeof msg !== 'object') return;
+  const now = Date.now();
+  client.lastSeen = now;
+
+  switch (msg.type) {
+    case 'join': {
+      if (typeof msg.name === 'string' && msg.name.trim()) {
+        client.name = msg.name.trim().substring(0, 16);
+      }
+      if (msg.cosmetics && typeof msg.cosmetics === 'object') {
+        client.cosmetics = {
+          color: String(msg.cosmetics.color || 'coral'),
+          hat: String(msg.cosmetics.hat || 'none'),
+          trail: String(msg.cosmetics.trail || 'none'),
+          face: String(msg.cosmetics.face || 'classic')
+        };
+      }
+      if (typeof msg.x === 'number') client.x = msg.x;
+      if (typeof msg.y === 'number') client.y = msg.y;
+      client.joined = true;
+
+      // Prepare list of other players
+      const otherPlayers = [];
+      for (const [id, c] of clients) {
+        if (id !== client.id && c.joined) {
+          otherPlayers.push({
+            id: c.id,
+            name: c.name,
+            cosmetics: c.cosmetics,
+            x: c.x,
+            y: c.y,
+            dir: c.dir,
+            facing: c.facing
+          });
+        }
+      }
+
+      // Welcome response
+      sendTo(client.socket, {
+        type: 'welcome',
+        you: client.id,
+        players: otherPlayers,
+        agentsSeed: AGENTS_SEED
+      });
+
+      // Notify others
+      broadcast(
+        {
+          type: 'player-join',
+          id: client.id,
+          name: client.name,
+          cosmetics: client.cosmetics,
+          x: client.x,
+          y: client.y,
+          dir: client.dir,
+          facing: client.facing
+        },
+        client.id
+      );
+      break;
+    }
+
+    case 'move': {
+      if (typeof msg.x === 'number') client.x = msg.x;
+      if (typeof msg.y === 'number') client.y = msg.y;
+      if (typeof msg.dir === 'string') client.dir = msg.dir;
+      if (typeof msg.facing === 'number') client.facing = msg.facing;
+
+      // Relay move to other players
+      broadcast(
+        {
+          type: 'move',
+          id: client.id,
+          x: client.x,
+          y: client.y,
+          dir: client.dir,
+          facing: client.facing
+        },
+        client.id
+      );
+      break;
+    }
+
+    case 'equip': {
+      if (msg.cosmetics && typeof msg.cosmetics === 'object') {
+        client.cosmetics = {
+          color: String(msg.cosmetics.color || client.cosmetics.color),
+          hat: String(msg.cosmetics.hat || client.cosmetics.hat),
+          trail: String(msg.cosmetics.trail || client.cosmetics.trail),
+          face: String(msg.cosmetics.face || client.cosmetics.face)
+        };
+        broadcast(
+          {
+            type: 'equip',
+            id: client.id,
+            cosmetics: client.cosmetics
+          },
+          client.id
+        );
+      }
+      break;
+    }
+
+    case 'name': {
+      if (typeof msg.name === 'string' && msg.name.trim()) {
+        client.name = msg.name.trim().substring(0, 16);
+        broadcast(
+          {
+            type: 'name',
+            id: client.id,
+            name: client.name
+          },
+          client.id
+        );
+      }
+      break;
+    }
+
+    case 'ping': {
+      sendTo(client.socket, { type: 'pong' });
+      break;
+    }
+  }
+}
+
+// Heartbeat checker: check every 5s, drop inactive > 12s
+const HEARTBEAT_INTERVAL = setInterval(() => {
+  const now = Date.now();
+  for (const [id, client] of clients) {
+    if (now - client.lastSeen > 12000) {
+      try {
+        client.socket.write(makeCloseFrame(1000));
+      } catch {}
+      client.socket.destroy();
+      clients.delete(id);
+      if (client.joined) {
+        broadcast({ type: 'player-leave', id });
+      }
+    } else {
+      // Send a lightweight ping frame to keep socket active
+      if (!client.socket.destroyed) {
+        try {
+          const pingBuf = Buffer.alloc(2);
+          pingBuf[0] = 0x89; // FIN + Ping
+          pingBuf[1] = 0;
+          client.socket.write(pingBuf);
+        } catch {}
+      }
+    }
+  }
+}, 5000);
+
+HEARTBEAT_INTERVAL.unref();
+
+function startServer(port = PORT, host = HOST) {
+  return new Promise((resolve, reject) => {
+    server.listen(port, host, () => {
+      console.log(`Forge Office running on http://${host}:${port}`);
+      resolve(server);
+    });
+    server.on('error', reject);
+  });
+}
+
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { server, startServer, PORT, HOST };

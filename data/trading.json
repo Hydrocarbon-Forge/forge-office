@@ -1,0 +1,104 @@
+{
+  "updated": "2026-10-06T12:52:33.297569+00:00",
+  "updated_ts": 1791291153.297569,
+  "stock": {
+    "label": "STOCKS",
+    "subtitle": "aggressive high R:R",
+    "equity": 99999.98,
+    "start": 100000.0,
+    "total_pnl": -0.02,
+    "total_pct": -0.0,
+    "day_pnl": -0.01,
+    "day_pct": -0.0,
+    "cash": 0.0,
+    "cash_pct": 0.0,
+    "holdings": [
+      {
+        "sym": "AMD",
+        "qty": 31.66,
+        "px": 631.75,
+        "val": 20000.0,
+        "w": 20.0
+      },
+      {
+        "sym": "MSTR",
+        "qty": 121.63,
+        "px": 164.43,
+        "val": 20000.0,
+        "w": 20.0
+      },
+      {
+        "sym": "INTC",
+        "qty": 172.13,
+        "px": 116.19,
+        "val": 19999.99,
+        "w": 20.0
+      },
+      {
+        "sym": "META",
+        "qty": 26.96,
+        "px": 741.9,
+        "val": 19999.99,
+        "w": 20.0
+      },
+      {
+        "sym": "CRWD",
+        "qty": 73.35,
+        "px": 272.67,
+        "val": 19999.99,
+        "w": 20.0
+      }
+    ],
+    "trades_now": [],
+    "n_trades": 11,
+    "quotes_ok": 20,
+    "quotes_total": 20
+  },
+  "crypto": {
+    "label": "CRYPTO",
+    "subtitle": "aggressive high R:R, 24/7",
+    "equity": 101586.19,
+    "start": 100000.0,
+    "total_pnl": 1586.19,
+    "total_pct": 1.59,
+    "day_pnl": 1586.19,
+    "day_pct": 1.59,
+    "cash": 0.0,
+    "cash_pct": 0.0,
+    "holdings": [
+      {
+        "sym": "AVAX",
+        "qty": 2232.5415,
+        "px": 11.51,
+        "val": 25698.79,
+        "w": 25.3
+      },
+      {
+        "sym": "WIF",
+        "qty": 101584.7217,
+        "px": 0.25,
+        "val": 25528.24,
+        "w": 25.1
+      },
+      {
+        "sym": "LINK",
+        "qty": 1812.645,
+        "px": 13.99,
+        "val": 25357.09,
+        "w": 25.0
+      },
+      {
+        "sym": "SOL",
+        "qty": 207.6412,
+        "px": 120.41,
+        "val": 25002.08,
+        "w": 24.6
+      }
+    ],
+    "trades_now": [],
+    "n_trades": 4,
+    "quotes_ok": 7,
+    "quotes_total": 9
+  },
+  "errors": []
+}

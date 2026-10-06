@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Forge Office — Hydrocarbon Virtual Office</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Canvas Container -->
+  <div id="canvasContainer">
+    <canvas id="officeCanvas"></canvas>
+  </div>
+
+  <!-- HUD Overlay -->
+  <div id="hudOverlay">
+    <div class="hud-left">
+      <div class="hud-title">FORGE OFFICE</div>
+      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • N for Lights</span></div>
+    </div>
+    <div class="hud-right">
+      <button id="lightsBtn" class="hud-btn">💡 LIGHTS (N)</button>
+      <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
+      <button id="muteBtn" class="hud-btn">🔊 SOUND</button>
+    </div>
+  </div>
+
+  <!-- Start Screen & Join Setup Modal -->
+  <div id="startScreen" class="modal-overlay">
+    <div class="modal-card start-card">
+      <div class="start-header">
+        <h1>FORGE OFFICE</h1>
+        <div class="start-subtitle">Hydrocarbon Forge Virtual LAN Headquarters</div>
+      </div>
+
+      <div class="start-preview-box">
+        <canvas id="startAvatarPreview" width="80" height="90"></canvas>
+      </div>
+
+      <div class="name-input-group">
+        <label for="playerNameInput">Your Agent Name</label>
+        <input type="text" id="playerNameInput" class="name-input" value="Agent" maxlength="16" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div id="startPickers"></div>
+
+      <div class="lights-setting-row">
+        <label class="lights-checkbox-label">
+          <input type="checkbox" id="startLightsCheckbox">
+          <span>Full Brightness (Darkness Off)</span>
+        </label>
+      </div>
+
+      <button id="enterOfficeBtn" class="enter-btn">CLICK TO ENTER OFFICE</button>
+    </div>
+  </div>
+
+  <!-- In-game Wardrobe Modal (C key) -->
+  <div id="wardrobeModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>WARDROBE & COSMETICS</h2>
+        <button id="closeWardrobeBtn" class="close-btn">✕</button>
+      </div>
+
+      <div class="start-preview-box">
+        <canvas id="wardrobeAvatarPreview" width="80" height="90"></canvas>
+      </div>
+
+      <div id="wardrobePickers"></div>
+    </div>
+  </div>
+
+  <!-- Project Inspector Modal (Archives E key) -->
+  <div id="projectModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="projTitle">Project Details</h2>
+        <button class="close-btn" onclick="document.getElementById('projectModal').classList.add('hidden')">✕</button>
+      </div>
+      <div class="project-detail-body">
+        <div class="detail-row">
+          <div class="detail-label">Status</div>
+          <div id="projStatus" class="detail-val"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Description</div>
+          <div id="projDesc" class="detail-val"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Path</div>
+          <div id="projPath" class="detail-val detail-path"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Tags</div>
+          <div id="projTags" class="tag-container"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Last Updated</div>
+          <div id="projUpdated" class="detail-val"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Touch Controls -->
+  <div id="mobileControls">
+    <div id="touchJoystickZone">
+      <div id="touchJoystickKnob"></div>
+    </div>
+    <div class="touch-btn-group">
+      <button id="touchSprintBtn" class="touch-action-btn">SPRINT</button>
+      <button id="touchActionBtn" class="touch-action-btn">ACTION [E]</button>
+    </div>
+  </div>
+
+  <!-- Game Scripts -->
+  <script src="sfx.js"></script>
+  <script src="map.js"></script>
+  <script src="render.js"></script>
+  <script src="agents.js"></script>
+  <script src="net.js"></script>
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
