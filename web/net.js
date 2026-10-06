@@ -111,12 +111,13 @@
       });
     }
 
-    sendVoiceChunk(b64, level) {
+    sendVoiceChunk(b64, level, sr) {
       this.send({
         type: 'va',
         t: 'va',
         d: b64,
-        l: level
+        l: level,
+        sr: sr
       });
     }
 

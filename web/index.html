@@ -16,7 +16,7 @@
   <div id="hudOverlay">
     <div class="hud-left">
       <div class="hud-title">FORGE OFFICE</div>
-      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights • V for Voice Mic</span></div>
+      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights • V for Voice Mic • Monitor Button to hear self</span></div>
       <div id="presenceChip" class="hud-chip"><span class="status-dot gray"></span> <span>Checking presence...</span></div>
       <div id="voiceIndicator" class="hud-chip voice-chip hidden"><span class="status-dot green"></span> <span id="voiceSpeakerName">Voices</span></div>
     </div>
@@ -25,6 +25,7 @@
       <button id="minimapBtn" class="hud-btn">🗺️ MAP (B)</button>
       <button id="lightsBtn" class="hud-btn">💡 LIGHTS (N)</button>
       <button id="micBtn" class="hud-btn">🎤 MIC (V)</button>
+      <button id="monitorBtn" class="hud-btn" title="Toggle Mic Self-Monitor (Hear yourself)">🎧 MONITOR: ON</button>
       <button id="musicBtn" class="hud-btn">🎵 MUSIC (M)</button>
       <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
       <button id="muteBtn" class="hud-btn">🔊 SOUND</button>
@@ -100,6 +101,13 @@
         <label class="lights-checkbox-label">
           <input type="checkbox" id="startMicCheckbox">
           <span>Enable Mic (Proximity Voice)</span>
+        </label>
+      </div>
+
+      <div class="voice-setting-row" style="margin-top: 4px;">
+        <label class="lights-checkbox-label">
+          <input type="checkbox" id="startMonitorCheckbox" checked>
+          <span>Self-Monitor (Hear Yourself)</span>
         </label>
       </div>
 

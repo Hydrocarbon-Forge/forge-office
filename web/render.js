@@ -22,6 +22,37 @@
     return { fill: hex, dark: '#22252A', highlight: '#FFFFFF' };
   }
 
+  // Seeded Mulberry32 PRNG for deterministic exterior terrain & feature generation
+  class SeededRNG {
+    constructor(seed = 0x5EED88) {
+      this.s = seed >>> 0;
+    }
+    next() {
+      let t = (this.s += 0x6D2B79F5) >>> 0;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    range(min, max) {
+      return min + this.next() * (max - min);
+    }
+    rangeInt(min, max) {
+      return Math.floor(this.range(min, max + 1));
+    }
+  }
+
+  // Bounding exclusion mask: protects office building interior and observation decks from collision
+  function isExcludedPosition(x, y, margin = 28) {
+    if (x >= 32 - margin && x <= 1376 + margin) {
+      if (y >= 32 - margin && y <= 704 + margin) return true;
+      if (x >= 960 - margin && x <= 1376 + margin && y >= 704 - margin && y <= 1120 + margin) return true;
+      if (x >= 544 - margin && x <= 832 + margin && y >= 704 - margin && y <= 1248 + margin) return true;
+    }
+    if (x >= 64 - margin && x <= 416 + margin && y >= 736 - margin && y <= 768 + margin) return true;
+    if (x >= 992 - margin && x <= 1344 + margin && y >= 1120 - margin && y <= 1152 + margin) return true;
+    return false;
+  }
+
   class Renderer {
     constructor(canvas) {
       this.canvas = canvas;
@@ -197,23 +228,93 @@
       ctx.fillStyle = mistGrad;
       ctx.fillRect(-margin, 130, totalW, 60);
 
-      // Extended Meadow Background beyond Map Bounds (y >= 260)
-      ctx.fillStyle = '#3E6B3F';
+      // 2. High-Effort Procedural Terrain Base (multi-stop rolling gradients & organic biomes)
+      const terrainGrad = ctx.createLinearGradient(0, 260, 0, mapH + margin);
+      terrainGrad.addColorStop(0.0, '#4E7C42');  // North foothill green
+      terrainGrad.addColorStop(0.25, '#528246'); // Upper valley green
+      terrainGrad.addColorStop(0.55, '#4A763F'); // Mid meadow green
+      terrainGrad.addColorStop(0.85, '#446E3A'); // Rolling south slope
+      terrainGrad.addColorStop(1.0, '#3D6334');  // Distant southern ridge green
+      ctx.fillStyle = terrainGrad;
       ctx.fillRect(-margin, 260, totalW, mapH + margin - 260);
 
-      // 2. Base Ground Terrain for Outside Voids (brighter day meadow greens)
+      // Seeded PRNG for stable, reload-deterministic organic landscape
+      const rng = new SeededRNG(0x5EED88);
+
+      // Biome Knolls & Rolling Swells (large organic soft overlapping patches)
+      const swells = [
+        // West / Northwest upland turf swells
+        { x: -500, y: 400, rx: 420, ry: 260, c: '#6B8E4E', a: 0.35 },
+        { x: -280, y: 700, rx: 340, ry: 220, c: '#5E8246', a: 0.30 },
+        { x: -650, y: 950, rx: 480, ry: 300, c: '#6B8E4E', a: 0.25 },
+        // East / Southeast sunny pasture swells
+        { x: mapW + 280, y: 450, rx: 380, ry: 240, c: '#5D8C4E', a: 0.40 },
+        { x: mapW + 550, y: 800, rx: 460, ry: 320, c: '#6E9B56', a: 0.30 },
+        { x: mapW + 320, y: 1200, rx: 420, ry: 280, c: '#5D8C4E', a: 0.35 },
+        { x: mapW + 600, y: 1600, rx: 500, ry: 340, c: '#6E9B56', a: 0.28 },
+        // Southwest Tarn lush hollow
+        { x: 180, y: 980, rx: 380, ry: 260, c: '#528246', a: 0.45 },
+        { x: -120, y: 1250, rx: 360, ry: 240, c: '#48753E', a: 0.35 },
+        // Southern deep valley rolling ridges
+        { x: 300, y: mapH + 350, rx: 650, ry: 280, c: '#4E7C42', a: 0.35 },
+        { x: 1000, y: mapH + 450, rx: 700, ry: 320, c: '#5D8C4E', a: 0.30 },
+        { x: -200, y: mapH + 500, rx: 600, ry: 300, c: '#446E3A', a: 0.35 },
+        { x: 600, y: mapH + 750, rx: 800, ry: 320, c: '#3D6334', a: 0.40 }
+      ];
+
+      swells.forEach(s => {
+        ctx.save();
+        ctx.globalAlpha = s.a;
+        ctx.fillStyle = s.c;
+        ctx.beginPath();
+        ctx.ellipse(s.x, s.y, s.rx, s.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Organic soil / loam patches in dry meadows
+      const soilPatches = [
+        { x: -380, y: 520, rx: 55, ry: 30 },
+        { x: -160, y: 340, rx: 45, ry: 24 },
+        { x: mapW + 380, y: 640, rx: 65, ry: 35 },
+        { x: mapW + 520, y: 1050, rx: 75, ry: 40 },
+        { x: 600, y: mapH + 280, rx: 85, ry: 42 }
+      ];
+      soilPatches.forEach(sp => {
+        ctx.save();
+        ctx.fillStyle = 'rgba(90, 74, 56, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(sp.x, sp.y, sp.rx, sp.ry, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Stippled grass dither tufts across open exterior
+      ctx.fillStyle = 'rgba(110, 175, 90, 0.25)';
+      for (let i = 0; i < 180; i++) {
+        const gx = -margin + 40 + rng.range(0, totalW - 80);
+        const gy = 270 + rng.range(0, mapH + margin - 300);
+        if (!isExcludedPosition(gx, gy, 16)) {
+          ctx.fillRect(gx, gy, 3, 5);
+          ctx.fillRect(gx + 4, gy + 2, 2, 4);
+        }
+      }
+
+      // Map void tile base fills (exterior tiles within map bounds: x: 0..43, y: 0..39)
       for (let y = 0; y < map.height; y++) {
         for (let x = 0; x < map.width; x++) {
           if (map.getTile(x, y) === 0) {
             const px = x * TILE;
             const py = y * TILE;
-            let groundColor = '#3E6B3F';
+            let groundColor = '#4E7C42';
             if (x <= 16 && y >= 22) {
-              groundColor = '#528246'; // Southwest sanctuary: bright lush meadow
+              groundColor = '#528246'; // Southwest sanctuary: lush valley meadow
             } else if (x >= 27 && x <= 29 && y >= 22 && y <= 34) {
-              groundColor = '#4E565E'; // Central ravine: rock bed
+              groundColor = '#4E565E'; // Central ravine rock bed
             } else if (y < 2) {
-              groundColor = '#467347'; // North vista foreground
+              groundColor = '#4E7C42'; // North vista foreground
+            } else if (x >= 30) {
+              groundColor = '#5D8C4E'; // East sunny meadow
             }
             ctx.fillStyle = groundColor;
             ctx.fillRect(px, py, TILE, TILE);
@@ -227,89 +328,160 @@
         }
       }
 
-      // 3. Central Ravine Cascading Brook (x: 27..29, y: 22..34)
-      const ravineX = 27 * TILE;
-      const ravineY = 22 * TILE;
-      const ravineW = 3 * TILE;
-      const ravineH = 13 * TILE;
-      ctx.fillStyle = '#363C44';
-      ctx.fillRect(ravineX, ravineY, ravineW, ravineH);
+      // 3. Central Ravine Cascading Brook (meandering from y = 704 down to y = mapH + margin)
+      const brookStartY = 22 * TILE; // 704px
+      const brookEndY = mapH + margin;
+      const stepY = 24;
 
-      ctx.fillStyle = '#4C86A8'; // Brighter sun-lit blue water
-      ctx.fillRect(ravineX + 16, ravineY, ravineW - 32, ravineH);
+      // Draw stony ravine trench
+      ctx.fillStyle = '#363C44';
+      ctx.beginPath();
+      for (let y = brookStartY; y <= brookEndY; y += stepY) {
+        const xc = 912 + Math.sin((y - 704) * 0.012) * 28 + Math.cos((y - 704) * 0.025) * 14;
+        const w = 52 + Math.sin((y - 704) * 0.018) * 10 + 36;
+        if (y === brookStartY) ctx.moveTo(xc - w / 2, y);
+        else ctx.lineTo(xc - w / 2, y);
+      }
+      for (let y = brookEndY; y >= brookStartY; y -= stepY) {
+        const xc = 912 + Math.sin((y - 704) * 0.012) * 28 + Math.cos((y - 704) * 0.025) * 14;
+        const w = 52 + Math.sin((y - 704) * 0.018) * 10 + 36;
+        ctx.lineTo(xc + w / 2, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Gravel banks along ravine
+      ctx.fillStyle = '#4E5560';
+      for (let y = brookStartY + 10; y < brookEndY; y += 48) {
+        const xc = 912 + Math.sin((y - 704) * 0.012) * 28 + Math.cos((y - 704) * 0.025) * 14;
+        ctx.fillRect(xc - 38, y, 6, 12);
+        ctx.fillRect(xc + 32, y + 16, 7, 10);
+      }
+
+      // Sunlit blue water channel
+      ctx.fillStyle = '#4C86A8';
+      ctx.beginPath();
+      for (let y = brookStartY; y <= brookEndY; y += stepY) {
+        const xc = 912 + Math.sin((y - 704) * 0.012) * 28 + Math.cos((y - 704) * 0.025) * 14;
+        const w = 52 + Math.sin((y - 704) * 0.018) * 10;
+        if (y === brookStartY) ctx.moveTo(xc - w / 2, y);
+        else ctx.lineTo(xc - w / 2, y);
+      }
+      for (let y = brookEndY; y >= brookStartY; y -= stepY) {
+        const xc = 912 + Math.sin((y - 704) * 0.012) * 28 + Math.cos((y - 704) * 0.025) * 14;
+        const w = 52 + Math.sin((y - 704) * 0.018) * 10;
+        ctx.lineTo(xc + w / 2, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Water white-water riffles
       ctx.strokeStyle = 'rgba(235, 250, 255, 0.65)';
       ctx.lineWidth = 1.5;
-      for (let ry = ravineY + 10; ry < ravineY + ravineH; ry += 24) {
+      for (let ry = brookStartY + 12; ry < brookEndY; ry += 28) {
+        const xc = 912 + Math.sin((ry - 704) * 0.012) * 28 + Math.cos((ry - 704) * 0.025) * 14;
         ctx.beginPath();
-        ctx.moveTo(ravineX + 20, ry);
-        ctx.lineTo(ravineX + ravineW - 20, ry + 3);
+        ctx.moveTo(xc - 18, ry);
+        ctx.lineTo(xc + 18, ry + 3);
         ctx.stroke();
       }
-      for (let i = 0; i < 7; i++) {
-        const bx = ravineX + 16 + (i % 2) * 36 + ((i * 17) % 18);
-        const by = ravineY + 20 + i * 50;
+
+      // River boulders along the brook
+      for (let i = 0; i < 14; i++) {
+        const by = brookStartY + 25 + i * 80;
+        const xc = 912 + Math.sin((by - 704) * 0.012) * 28 + Math.cos((by - 704) * 0.025) * 14;
+        const bx = xc + (i % 2 === 0 ? -12 : 14) + ((i * 17) % 8 - 4);
         ctx.fillStyle = '#4E5560';
         ctx.beginPath();
-        ctx.arc(bx, by, 7, 0, Math.PI * 2);
+        ctx.arc(bx, by, 6.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#3A6248';
         ctx.beginPath();
-        ctx.arc(bx, by - 2, 4, 0, Math.PI);
+        ctx.arc(bx, by - 2, 3.5, 0, Math.PI);
         ctx.fill();
       }
 
-      // 4. Southwest Sanctuary: Alpine Tarn (Mountain Lake — sun-lit blues)
-      const lakeCx = 8 * TILE;
-      const lakeCy = 30 * TILE;
-      const lakeRx = 190;
-      const lakeRy = 120;
-      const lakeGrad = ctx.createRadialGradient(lakeCx, lakeCy, 15, lakeCx, lakeCy, lakeRx);
+      // Feature 10: Stepping stones across the brook at y = 940
+      this.drawSteppingStones(ctx, 912, 940);
+
+      // 4. Southwest Sanctuary: Alpine Tarn with Multi-Frequency Organic Shoreline
+      const lakeCx = 8 * TILE; // 256px
+      const lakeCy = 31 * TILE; // 992px
+      const lakeRx = 220;
+      const lakeRy = 145;
+
+      // 60-step organic shoreline polygon
+      const lakeSteps = 60;
+      const shorePoints = [];
+      for (let i = 0; i <= lakeSteps; i++) {
+        const angle = (i / lakeSteps) * Math.PI * 2;
+        const wobble = 1.0 + 0.08 * Math.sin(3 * angle + 0.4) + 0.05 * Math.cos(5 * angle - 0.2) + 0.03 * Math.sin(8 * angle + 1.1);
+        shorePoints.push({
+          angle,
+          x: lakeCx + Math.cos(angle) * lakeRx * wobble,
+          y: lakeCy + Math.sin(angle) * lakeRy * wobble,
+          sandX: lakeCx + Math.cos(angle) * (lakeRx + 16) * wobble,
+          sandY: lakeCy + Math.sin(angle) * (lakeRy + 12) * wobble
+        });
+      }
+
+      // 4a. Sand / pebble beach fringe
+      ctx.fillStyle = '#C2B28F';
+      ctx.beginPath();
+      ctx.moveTo(shorePoints[0].sandX, shorePoints[0].sandY);
+      shorePoints.forEach(p => ctx.lineTo(p.sandX, p.sandY));
+      ctx.closePath();
+      ctx.fill();
+
+      // 4b. Deep water basin with radial gradient
+      const lakeGrad = ctx.createRadialGradient(lakeCx - 30, lakeCy - 20, 15, lakeCx, lakeCy, lakeRx);
       lakeGrad.addColorStop(0.0, '#2D5E7B');
       lakeGrad.addColorStop(0.55, '#3D7699');
       lakeGrad.addColorStop(0.85, '#4C86A8');
       lakeGrad.addColorStop(1.0, '#5A96A6');
 
-      ctx.save();
-      ctx.beginPath();
-      const lakeSteps = 36;
-      for (let i = 0; i <= lakeSteps; i++) {
-        const angle = (i / lakeSteps) * Math.PI * 2;
-        const wobble = 1.0 + Math.sin(angle * 3) * 0.07 + Math.cos(angle * 5) * 0.04;
-        const px = lakeCx + Math.cos(angle) * lakeRx * wobble;
-        const py = lakeCy + Math.sin(angle) * lakeRy * wobble;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
       ctx.fillStyle = lakeGrad;
+      ctx.beginPath();
+      ctx.moveTo(shorePoints[0].x, shorePoints[0].y);
+      shorePoints.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = '#467458';
-      ctx.lineWidth = 3;
+      // Aqua littoral fringe stroke
+      ctx.strokeStyle = '#5A96A6';
+      ctx.lineWidth = 4;
       ctx.stroke();
 
+      // Daylight reflection sheen wash
       const reflGrad = ctx.createLinearGradient(lakeCx - lakeRx, lakeCy - lakeRy, lakeCx + lakeRx, lakeCy + lakeRy);
-      reflGrad.addColorStop(0.2, 'rgba(255, 255, 230, 0.35)');
-      reflGrad.addColorStop(0.8, 'rgba(130, 195, 225, 0.30)');
+      reflGrad.addColorStop(0.2, 'rgba(255, 255, 230, 0.28)');
+      reflGrad.addColorStop(0.8, 'rgba(130, 195, 225, 0.22)');
       ctx.fillStyle = reflGrad;
+      ctx.beginPath();
+      ctx.moveTo(shorePoints[0].x, shorePoints[0].y);
+      shorePoints.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = 'rgba(235, 250, 255, 0.55)';
+      // Gentle water wave lines
+      ctx.strokeStyle = 'rgba(235, 250, 255, 0.50)';
       ctx.lineWidth = 1.2;
-      for (let dy = -lakeRy + 20; dy < lakeRy - 15; dy += 18) {
-        const chordLen = Math.sqrt(Math.max(0, 1 - (dy / lakeRy) ** 2)) * lakeRx * 0.72;
+      for (let dy = -lakeRy + 25; dy < lakeRy - 20; dy += 22) {
+        const chordLen = Math.sqrt(Math.max(0, 1 - (dy / lakeRy) ** 2)) * lakeRx * 0.70;
         ctx.beginPath();
         ctx.moveTo(lakeCx - chordLen + 15, lakeCy + dy);
         ctx.lineTo(lakeCx + chordLen - 15, lakeCy + dy);
         ctx.stroke();
       }
 
+      // Shoreline boulders around tarn
       const shoreRocks = [
-        { x: lakeCx - lakeRx * 0.72, y: lakeCy + lakeRy * 0.40, r: 9 },
-        { x: lakeCx - lakeRx * 0.45, y: lakeCy + lakeRy * 0.68, r: 7 },
-        { x: lakeCx + lakeRx * 0.62, y: lakeCy - lakeRy * 0.32, r: 10 },
-        { x: lakeCx + lakeRx * 0.42, y: lakeCy + lakeRy * 0.52, r: 8 },
-        { x: lakeCx - 10, y: lakeCy + lakeRy * 0.85, r: 6 }
+        { x: lakeCx - lakeRx * 0.76, y: lakeCy + lakeRy * 0.35, r: 9 },
+        { x: lakeCx - lakeRx * 0.48, y: lakeCy + lakeRy * 0.72, r: 7.5 },
+        { x: lakeCx + lakeRx * 0.65, y: lakeCy - lakeRy * 0.28, r: 10 },
+        { x: lakeCx + lakeRx * 0.44, y: lakeCy + lakeRy * 0.56, r: 8 },
+        { x: lakeCx - 15, y: lakeCy + lakeRy * 0.88, r: 6.5 },
+        { x: lakeCx + 80, y: lakeCy + lakeRy * 0.75, r: 7 }
       ];
       shoreRocks.forEach(rk => {
         ctx.fillStyle = '#4E5560';
@@ -322,44 +494,144 @@
         ctx.fill();
       });
 
+      // Lily pads on calm waters
       ctx.fillStyle = '#3A8253';
       [
-        { x: lakeCx - 40, y: lakeCy - 20, r: 5 },
-        { x: lakeCx - 55, y: lakeCy - 12, r: 4 },
-        { x: lakeCx + 60, y: lakeCy + 25, r: 6 },
-        { x: lakeCx + 75, y: lakeCy + 15, r: 5 }
+        { x: lakeCx - 50, y: lakeCy - 25, r: 6 },
+        { x: lakeCx - 70, y: lakeCy - 15, r: 5 },
+        { x: lakeCx + 75, y: lakeCy + 35, r: 7 },
+        { x: lakeCx + 95, y: lakeCy + 22, r: 5.5 },
+        { x: lakeCx - 30, y: lakeCy + 60, r: 6 }
       ].forEach(lp => {
         ctx.beginPath();
         ctx.arc(lp.x, lp.y, lp.r, 0.2, Math.PI * 1.8);
         ctx.fill();
       });
-      ctx.restore();
 
-      // Wildflowers across southwest meadow
-      const flowerColors = ['#FFE28A', '#FFA87D', '#FFFFFF', '#F6E05E'];
-      for (let i = 0; i < 45; i++) {
-        const fx = 20 + ((i * 37) % 500);
-        const fy = 23 * TILE + ((i * 59) % (16 * TILE));
-        const distToLake = Math.hypot(fx - lakeCx, fy - lakeCy);
-        if (distToLake > 140) {
-          ctx.fillStyle = flowerColors[i % flowerColors.length];
-          ctx.beginPath();
-          ctx.arc(fx, fy, 1.5, 0, Math.PI * 2);
-          ctx.fill();
+      // Feature 1: Rustic Wooden Dock extending into tarn from northern shore
+      this.drawRusticDock(ctx, 220, 880);
+
+      // 5. Walking Trails (Branching Procedural Dirt Paths)
+      // Main Trail: south of Deck B winding southeast into the pasture
+      const mainTrailPoints = [
+        { x: 1168, y: 1160 },
+        { x: 1260, y: 1230 },
+        { x: 1390, y: 1320 },
+        { x: 1540, y: 1440 },
+        { x: 1710, y: 1600 },
+        { x: 1910, y: 1780 },
+        { x: 2120, y: 1980 }
+      ];
+      this.drawWindingPath(ctx, mainTrailPoints, 20);
+
+      // North Trail: from east of Antigravity Lab outward to the eastern ridge
+      const northTrailPoints = [
+        { x: 1376, y: 240 },
+        { x: 1520, y: 260 },
+        { x: 1680, y: 290 },
+        { x: 1880, y: 310 },
+        { x: 2120, y: 320 }
+      ];
+      this.drawWindingPath(ctx, northTrailPoints, 18);
+
+      // Dock approach trail
+      const dockTrailPoints = [
+        { x: 160, y: 768 },
+        { x: 190, y: 820 },
+        { x: 220, y: 880 }
+      ];
+      this.drawWindingPath(ctx, dockTrailPoints, 14);
+
+      // 6. Scattered Small Sculpted Features
+      // Feature 2: Stone Fire Pit & Benches
+      this.drawStoneFirePit(ctx, -60, 1120);
+      this.drawStoneFirePit(ctx, 1820, 1450);
+
+      // Feature 3: Glacial Boulders (placed across highlands, tarn shores, and pastures)
+      const boulderSpawns = [
+        { x: -120, y: 200, r: 16, s: 2 },
+        { x: -320, y: 380, r: 22, s: 5 },
+        { x: -180, y: 560, r: 14, s: 7 },
+        { x: -450, y: 750, r: 18, s: 3 },
+        { x: 120, y: 1080, r: 12, s: 9 },
+        { x: 420, y: 920, r: 14, s: 4 },
+        { x: -140, y: 1380, r: 16, s: 6 },
+        { x: 1550, y: 720, r: 15, s: 8 },
+        { x: 1780, y: 1280, r: 20, s: 1 },
+        { x: 2050, y: 1620, r: 18, s: 11 },
+        { x: 620, y: mapH + 340, r: 16, s: 13 }
+      ];
+      boulderSpawns.forEach(b => {
+        if (!isExcludedPosition(b.x, b.y, b.r + 4)) {
+          this.drawGlacialBoulder(ctx, b.x, b.y, b.r, b.s);
         }
-      }
+      });
 
-      // 5. Wooden Observation Decks
-      // Deck A: South of Break Room (y = 23, x: 2..12)
-      this.drawObservationDeck(ctx, 2 * TILE, 23 * TILE, 11 * TILE, TILE);
-      // Deck B: South of Trading Floor (y = 35, x: 31..41)
-      this.drawObservationDeck(ctx, 31 * TILE, 35 * TILE, 11 * TILE, TILE);
+      // Feature 5: Wetland Cattails & Tall Reeds
+      const cattailLocs = [
+        { x: 90, y: 950, s: 1 },
+        { x: 150, y: 1100, s: 3 },
+        { x: 380, y: 1050, s: 5 },
+        { x: 320, y: 910, s: 7 },
+        { x: 865, y: 820, s: 2 },
+        { x: 955, y: 870, s: 4 },
+        { x: 860, y: 1020, s: 6 },
+        { x: 960, y: 1150, s: 8 }
+      ];
+      cattailLocs.forEach(c => this.drawCattailClump(ctx, c.x, c.y, c.s));
 
-      // 6. Foundation Retaining Wall & Cliff Ledges around Building
-      this.drawRetainingWallsAndCliffLedges(ctx, map);
+      // Feature 6: Directional Trail Signposts
+      this.drawTrailSignpost(ctx, 1380, 780);
+      this.drawTrailSignpost(ctx, 1850, 1200);
 
-      // 7. Multi-Tier Conifer / Pine Trees
-      const pinePositions = [
+      // Feature 7: Mountain Stone Cairns
+      this.drawStoneCairn(ctx, -240, 280);
+      this.drawStoneCairn(ctx, 1750, 450);
+
+      // Feature 8: Split-Rail Fence Remnants
+      this.drawSplitRailFence(ctx, 1520, 920, 80);
+      this.drawSplitRailFence(ctx, 1640, 1420, 96);
+
+      // Feature 9: Fallen Mossy Cedar Logs
+      this.drawFallenLog(ctx, 340, 1350);
+      this.drawFallenLog(ctx, -150, 520);
+
+      // Feature 11: Secluded Mountain Vista Park Bench
+      this.drawVistaBench(ctx, -180, 140);
+
+      // Feature 12: Forest Sunbeam Shafts
+      this.drawSunbeamShaft(ctx, -200, 400, 180, 32);
+      this.drawSunbeamShaft(ctx, 1600, 600, 220, 36);
+
+      // Feature 13: Mushroom Fairy Ring
+      this.drawMushroomFairyRing(ctx, 120, 1420);
+
+      // Feature 4: Four-Species Wildflower Clusters
+      const flowerLocs = [
+        // Columbine (species 0)
+        { x: -80, y: 920, count: 14, sp: 0, s: 3 },
+        { x: 420, y: 1120, count: 16, sp: 0, s: 5 },
+        { x: 1420, y: 550, count: 18, sp: 0, s: 9 },
+        // Buttercups (species 1)
+        { x: 80, y: 1250, count: 20, sp: 1, s: 2 },
+        { x: 1560, y: 840, count: 22, sp: 1, s: 4 },
+        { x: 1850, y: 1650, count: 25, sp: 1, s: 8 },
+        // Daisies / Edelweiss (species 2)
+        { x: -300, y: 320, count: 15, sp: 2, s: 7 },
+        { x: 1680, y: 400, count: 18, sp: 2, s: 1 },
+        { x: -180, y: 720, count: 14, sp: 2, s: 11 },
+        // Poppies (species 3)
+        { x: 1480, y: 1150, count: 16, sp: 3, s: 6 },
+        { x: 1720, y: 1350, count: 20, sp: 3, s: 10 },
+        { x: 280, y: mapH + 220, count: 18, sp: 3, s: 12 }
+      ];
+      flowerLocs.forEach(fl => this.drawWildflowerCluster(ctx, fl.x, fl.y, fl.count, fl.sp, fl.s));
+
+      // 7. Multi-Tier Conifer / Pine Trees (Organized into natural groves and Y-sorted)
+      const pineList = [];
+
+      // Core foreground / boundary pines
+      const corePines = [
         // North Vista slope
         { x: 2 * TILE + 16, y: 0.8 * TILE, s: 0.95 },
         { x: 9 * TILE, y: 0.5 * TILE, s: 0.85 },
@@ -384,24 +656,66 @@
         { x: 43.3 * TILE, y: 9 * TILE, s: 0.85 },
         { x: 43.5 * TILE, y: 15 * TILE, s: 0.95 },
         { x: 43.4 * TILE, y: 24 * TILE, s: 1.0 },
-        { x: 43.3 * TILE, y: 30 * TILE, s: 0.9 },
-        // Extended outer margin trees
-        { x: -350, y: 120, s: 0.9 },
-        { x: -180, y: 250, s: 0.85 },
-        { x: -280, y: 600, s: 0.95 },
-        { x: -150, y: 900, s: 1.0 },
-        { x: -300, y: 1100, s: 1.05 },
-        { x: mapW + 120, y: 200, s: 0.9 },
-        { x: mapW + 280, y: 500, s: 0.95 },
-        { x: mapW + 160, y: 850, s: 1.0 },
-        { x: mapW + 320, y: 1150, s: 1.1 },
-        { x: 300, y: mapH + 180, s: 1.05 },
-        { x: 700, y: mapH + 250, s: 1.1 },
-        { x: 1100, y: mapH + 150, s: 1.0 }
+        { x: 43.3 * TILE, y: 30 * TILE, s: 0.9 }
       ];
-      pinePositions.forEach(p => {
+      corePines.forEach(p => pineList.push(p));
+
+      // Natural Groves defined by centers and radii
+      const groves = [
+        { cx: -220, cy: 480, r: 180, count: 14 },
+        { cx: -180, cy: 1080, r: 220, count: 16 },
+        { cx: 180, cy: 1260, r: 140, count: 9 },
+        { cx: 1700, cy: 1100, r: 240, count: 20 },
+        { cx: 1950, cy: 420, r: 200, count: 14 },
+        { cx: 450, cy: mapH + 300, r: 260, count: 16 },
+        { cx: 1150, cy: mapH + 320, r: 240, count: 15 },
+        { cx: -350, cy: 1150, r: 200, count: 12 }
+      ];
+
+      groves.forEach(g => {
+        for (let i = 0; i < g.count; i++) {
+          const angle = rng.range(0, Math.PI * 2);
+          const dist = Math.sqrt(rng.next()) * g.r;
+          const tx = g.cx + Math.cos(angle) * dist;
+          const ty = g.cy + Math.sin(angle) * dist;
+          const scale = rng.range(0.85, 1.2);
+          if (!isExcludedPosition(tx, ty, 20)) {
+            pineList.push({ x: tx, y: ty, s: scale });
+          }
+        }
+      });
+
+      // Loose tree bands along north foothills and southern boundary
+      for (let i = 0; i < 18; i++) {
+        const tx = -600 + i * 145 + rng.range(-30, 30);
+        const ty = rng.range(30, 110);
+        if (!isExcludedPosition(tx, ty, 20)) {
+          pineList.push({ x: tx, y: ty, s: rng.range(0.8, 1.0) });
+        }
+      }
+      for (let i = 0; i < 20; i++) {
+        const tx = -700 + i * 155 + rng.range(-40, 40);
+        const ty = mapH + rng.range(420, 750);
+        pineList.push({ x: tx, y: ty, s: rng.range(0.9, 1.25) });
+      }
+
+      // Sort pines by Y coordinate for natural depth ordering
+      pineList.sort((a, b) => a.y - b.y);
+      pineList.forEach(p => {
         this.drawPineTree(ctx, p.x, p.y, p.s);
       });
+
+      // 8. Observation Decks & Foundation Retaining Walls
+      this.drawObservationDeck(ctx, 2 * TILE, 23 * TILE, 11 * TILE, TILE);
+      this.drawObservationDeck(ctx, 31 * TILE, 35 * TILE, 11 * TILE, TILE);
+      this.drawRetainingWallsAndCliffLedges(ctx, map);
+
+      // 9. Southern Atmospheric Aerial Depth Wash (y > 1500)
+      const hazeGrad = ctx.createLinearGradient(0, 1500, 0, mapH + margin);
+      hazeGrad.addColorStop(0.0, 'rgba(234, 244, 220, 0.0)');
+      hazeGrad.addColorStop(1.0, 'rgba(234, 244, 220, 0.22)');
+      ctx.fillStyle = hazeGrad;
+      ctx.fillRect(-margin, 1500, totalW, mapH + margin - 1500);
 
       ctx.restore();
       this.vistaDirty = false;
@@ -530,28 +844,564 @@
       });
     }
 
+    drawRusticDock(ctx, x, y) {
+      ctx.save();
+      // 1. Water shadow under dock
+      ctx.fillStyle = 'rgba(15, 30, 40, 0.45)';
+      ctx.fillRect(x - 14, y, 28, 68);
+
+      // 2. Heavy wooden support pilings (4 pilings in water)
+      const pilings = [
+        { px: x - 10, py: y + 20 }, { px: x + 10, py: y + 20 },
+        { px: x - 10, py: y + 56 }, { px: x + 10, py: y + 56 }
+      ];
+      pilings.forEach(p => {
+        ctx.fillStyle = '#261A12'; // Waterlogged wood
+        ctx.beginPath();
+        ctx.arc(p.px, p.py + 4, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4A3423';
+        ctx.fillRect(p.px - 3, p.py - 6, 6, 10);
+        // Water ripple ring around piling
+        ctx.strokeStyle = 'rgba(210, 240, 255, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p.px - 5, p.py + 2, 10, 4);
+      });
+
+      // 3. Main stringers / support beams
+      ctx.fillStyle = '#3E2A1C';
+      ctx.fillRect(x - 11, y, 4, 64);
+      ctx.fillRect(x + 7, y, 4, 64);
+
+      // 4. Individual weathered deck planks (10 cross planks)
+      for (let i = 0; i < 10; i++) {
+        const py = y + i * 6.2;
+        const plankW = 26 + ((i % 3) * 1.5);
+        const px = x - plankW / 2;
+        ctx.fillStyle = (i % 2 === 0) ? '#6E4D34' : '#63452E';
+        ctx.fillRect(px, py, plankW, 5.2);
+        ctx.fillStyle = '#856043';
+        ctx.fillRect(px, py, plankW, 1.2);
+        ctx.fillStyle = '#1D140D';
+        ctx.fillRect(px + 3, py + 2, 1, 1.2);
+        ctx.fillRect(px + plankW - 4, py + 2, 1, 1.2);
+      }
+
+      // 5. Mooring bollard & coiled rope at dock end
+      ctx.fillStyle = '#2A1C12';
+      ctx.fillRect(x + 7, y + 58, 4, 6);
+      ctx.strokeStyle = '#8B7355';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x + 7, y + 58, 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawStoneFirePit(ctx, x, y) {
+      ctx.save();
+      // Scorch mark
+      const sootGrad = ctx.createRadialGradient(x, y, 2, x, y, 22);
+      sootGrad.addColorStop(0.0, 'rgba(25, 20, 18, 0.70)');
+      sootGrad.addColorStop(0.5, 'rgba(45, 38, 32, 0.40)');
+      sootGrad.addColorStop(1.0, 'rgba(45, 38, 32, 0.0)');
+      ctx.fillStyle = sootGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ash and charcoal center
+      ctx.fillStyle = '#221F1E';
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6E6662';
+      ctx.fillRect(x - 3, y - 2, 6, 4);
+
+      // Ring of 10 river stones
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2;
+        const sx = x + Math.cos(angle) * 11.5;
+        const sy = y + Math.sin(angle) * 11.5;
+        ctx.fillStyle = '#20242B';
+        ctx.beginPath();
+        ctx.arc(sx - 1, sy + 1, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = (i % 2 === 0) ? '#5A626E' : '#4E5560';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#7E8796';
+        ctx.beginPath();
+        ctx.arc(sx + 0.8, sy - 0.8, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Two split-log benches
+      this.drawLogBench(ctx, x, y - 26, 28, 7, 0);
+      this.drawLogBench(ctx, x - 26, y, 7, 28, 0);
+      ctx.restore();
+    }
+
+    drawLogBench(ctx, bx, by, w, h, rot) {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.fillStyle = 'rgba(20, 25, 20, 0.35)';
+      ctx.fillRect(-w/2 - 2, -h/2 + 3, w, h);
+      ctx.fillStyle = '#5A3E28';
+      ctx.fillRect(-w/2, -h/2, w, h);
+      ctx.fillStyle = '#825C3D';
+      ctx.fillRect(-w/2 + 1, -h/2 + 1, w - 2, h - 3);
+      ctx.fillStyle = '#9C704C';
+      ctx.fillRect(-w/2 + 3, -h/2 + 2, w - 6, 1);
+      ctx.restore();
+    }
+
+    drawGlacialBoulder(ctx, x, y, r, seed = 1) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 30, 25, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.25, y + r * 0.35, r * 1.1, r * 0.55, -0.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      const points = [];
+      const sides = 7;
+      for (let i = 0; i < sides; i++) {
+        const angle = (i / sides) * Math.PI * 2;
+        const wobble = 1.0 + (((seed * 37 + i * 19) % 10) - 5) * 0.04;
+        points.push({
+          x: x + Math.cos(angle) * r * wobble,
+          y: y + Math.sin(angle) * (r * 0.75) * wobble
+        });
+      }
+
+      ctx.fillStyle = '#4E5560';
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      points.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+
+      // Shaded bottom facet
+      ctx.fillStyle = '#363C44';
+      ctx.beginPath();
+      ctx.moveTo(x - r, y);
+      ctx.lineTo(x, y + r * 0.65);
+      ctx.lineTo(x + r * 0.8, y + r * 0.2);
+      ctx.lineTo(x, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Sunlit top-right facet
+      ctx.fillStyle = '#737B8A';
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.2, y - r * 0.65);
+      ctx.lineTo(x + r * 0.85, y - r * 0.3);
+      ctx.lineTo(x + r * 0.4, y + r * 0.1);
+      ctx.lineTo(x - r * 0.1, y - r * 0.1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Moss cap on top
+      ctx.fillStyle = '#3A6248';
+      ctx.beginPath();
+      ctx.ellipse(x + r * 0.1, y - r * 0.35, r * 0.65, r * 0.3, 0.1, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4E8058';
+      ctx.fillRect(x, y - r * 0.4, r * 0.4, 2);
+      ctx.restore();
+    }
+
+    drawWildflowerCluster(ctx, x, y, count, species, seed = 1) {
+      ctx.save();
+      for (let i = 0; i < count; i++) {
+        const fx = x + (((seed * 31 + i * 47) % 32) - 16);
+        const fy = y + (((seed * 59 + i * 23) % 24) - 12);
+        ctx.fillStyle = '#386333';
+        ctx.fillRect(fx, fy, 1, 3);
+
+        if (species === 0) { // Columbine
+          ctx.fillStyle = (i % 2 === 0) ? '#5E6AD2' : '#8C7CE6';
+          ctx.beginPath();
+          ctx.arc(fx, fy - 1, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#FFF8D6';
+          ctx.fillRect(fx - 0.5, fy - 1.5, 1, 1);
+        } else if (species === 1) { // Buttercup
+          ctx.fillStyle = '#FFD13B';
+          ctx.beginPath();
+          ctx.arc(fx, fy - 1, 2.0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#E28E2B';
+          ctx.fillRect(fx - 0.5, fy - 1.5, 1, 1);
+        } else if (species === 2) { // Edelweiss / Daisy
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(fx, fy - 1, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ECC94B';
+          ctx.beginPath();
+          ctx.arc(fx, fy - 1, 1.0, 0, Math.PI * 2);
+          ctx.fill();
+        } else { // Poppy
+          ctx.fillStyle = '#FF5E5B';
+          ctx.beginPath();
+          ctx.arc(fx, fy - 1, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#3D1A1A';
+          ctx.fillRect(fx - 0.5, fy - 1.5, 1, 1);
+        }
+      }
+      ctx.restore();
+    }
+
+    drawCattailClump(ctx, x, y, seed = 1) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 35, 20, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 10, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.lineWidth = 1.2;
+      const blades = [-7, -4, -1, 2, 5, 8];
+      blades.forEach((dx, idx) => {
+        const tipCurve = dx * 1.4 + ((seed * 11 + idx * 7) % 5 - 2);
+        ctx.strokeStyle = (idx % 2 === 0) ? '#4A7C3D' : '#3B6330';
+        ctx.beginPath();
+        ctx.moveTo(x + dx * 0.6, y);
+        ctx.quadraticCurveTo(x + dx, y - 10, x + dx + tipCurve, y - 18 - (idx % 3) * 3);
+        ctx.stroke();
+      });
+
+      const spikes = [{ dx: -2, h: 20 }, { dx: 3, h: 22 }];
+      spikes.forEach(s => {
+        ctx.strokeStyle = '#2F4F24';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(x + s.dx, y);
+        ctx.lineTo(x + s.dx, y - s.h);
+        ctx.stroke();
+
+        ctx.fillStyle = '#5A361D';
+        ctx.fillRect(x + s.dx - 1.5, y - s.h + 3, 3, 7.5);
+        ctx.fillStyle = '#7A4D2E';
+        ctx.fillRect(x + s.dx, y - s.h + 3, 1.2, 7.5);
+        ctx.fillStyle = '#2F4F24';
+        ctx.fillRect(x + s.dx - 0.5, y - s.h, 1, 3);
+      });
+      ctx.restore();
+    }
+
+    drawTrailSignpost(ctx, x, y) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 25, 20, 0.40)';
+      ctx.fillRect(x - 6, y + 1, 8, 3);
+
+      ctx.fillStyle = '#4E3827';
+      ctx.fillRect(x - 2, y - 22, 4, 24);
+      ctx.fillStyle = '#6E523A';
+      ctx.fillRect(x, y - 22, 2, 24);
+
+      // Sign Arm 1 (North)
+      ctx.fillStyle = '#75543B';
+      ctx.fillRect(x - 2, y - 20, 16, 5);
+      ctx.beginPath();
+      ctx.moveTo(x + 14, y - 22.5);
+      ctx.lineTo(x + 19, y - 17.5);
+      ctx.lineTo(x + 14, y - 12.5);
+      ctx.fill();
+      ctx.fillStyle = '#301F14';
+      ctx.fillRect(x + 1, y - 18, 10, 1.2);
+
+      // Sign Arm 2 (West)
+      ctx.fillStyle = '#654731';
+      ctx.fillRect(x - 14, y - 13, 14, 5);
+      ctx.beginPath();
+      ctx.moveTo(x - 14, y - 15.5);
+      ctx.lineTo(x - 19, y - 10.5);
+      ctx.lineTo(x - 14, y - 5.5);
+      ctx.fill();
+      ctx.fillStyle = '#301F14';
+      ctx.fillRect(x - 12, y - 11, 8, 1.2);
+      ctx.restore();
+    }
+
+    drawStoneCairn(ctx, x, y) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(25, 30, 25, 0.40)';
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y + 2, 10, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const stones = [
+        { w: 16, h: 4.5, dy: 0, c: '#4E5560', cHi: '#737B8A' },
+        { w: 13, h: 4.0, dy: -4, c: '#5A626E', cHi: '#808997' },
+        { w: 10, h: 3.5, dy: -7.5, c: '#4E5560', cHi: '#737B8A' },
+        { w: 7,  h: 3.2, dy: -10.5, c: '#5A626E', cHi: '#808997' },
+        { w: 4.5, h: 4.0, dy: -14.0, c: '#6B7482', cHi: '#919BAA' }
+      ];
+
+      stones.forEach(s => {
+        const sy = y + s.dy;
+        ctx.fillStyle = s.c;
+        ctx.beginPath();
+        ctx.ellipse(x, sy, s.w / 2, s.h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = s.cHi;
+        ctx.beginPath();
+        ctx.ellipse(x + s.w * 0.15, sy - s.h * 0.2, s.w * 0.3, s.h * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    drawSplitRailFence(ctx, x, y, len = 72) {
+      ctx.save();
+      const numBays = Math.floor(len / 32);
+      for (let b = 0; b < numBays; b++) {
+        const px0 = x + b * 32;
+        const px1 = px0 + 32;
+        const py = y + (b % 2) * 6;
+
+        ctx.fillStyle = 'rgba(20, 25, 20, 0.35)';
+        ctx.fillRect(px0 - 4, py + 2, 6, 2.5);
+
+        ctx.strokeStyle = '#4A3728';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(px0, py - 4);
+        ctx.lineTo(px1, py - 6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(px0, py - 11);
+        ctx.lineTo(px1, py - 13);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#6E533E';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(px0, py - 12);
+        ctx.lineTo(px1, py - 14);
+        ctx.stroke();
+
+        ctx.fillStyle = '#3E2D20';
+        ctx.fillRect(px0 - 2, py - 16, 4, 18);
+        ctx.fillStyle = '#5A4230';
+        ctx.fillRect(px0, py - 16, 1.8, 18);
+      }
+      ctx.restore();
+    }
+
+    drawFallenLog(ctx, x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-0.25);
+
+      ctx.fillStyle = 'rgba(15, 25, 20, 0.45)';
+      ctx.fillRect(-22, 4, 46, 5);
+
+      ctx.fillStyle = '#3E2D22';
+      ctx.fillRect(-22, -4, 44, 8);
+      ctx.fillStyle = '#553F30';
+      ctx.fillRect(-20, -3, 40, 2);
+
+      ctx.fillStyle = '#8C684B';
+      ctx.beginPath();
+      ctx.ellipse(-22, 0, 2.5, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#553F30';
+      ctx.fillRect(-22, -1, 1, 2);
+
+      ctx.fillStyle = '#3E2D22';
+      ctx.fillRect(4, -8, 3, 5);
+
+      ctx.fillStyle = '#3B683D';
+      ctx.fillRect(-12, -4.5, 24, 2);
+      ctx.fillStyle = '#528C55';
+      ctx.fillRect(-6, -4.5, 12, 1);
+
+      ctx.fillStyle = '#E5D8BE';
+      ctx.beginPath();
+      ctx.arc(8, -4, 2.2, Math.PI, Math.PI * 2);
+      ctx.arc(14, -4, 1.8, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawSteppingStones(ctx, startX, startY) {
+      ctx.save();
+      const stones = [
+        { dx: -24, dy: -3, rx: 5.5, ry: 4.0 },
+        { dx: -12, dy: 1,  rx: 5.0, ry: 4.5 },
+        { dx: 0,   dy: -2, rx: 6.0, ry: 4.5 },
+        { dx: 13,  dy: 2,  rx: 5.2, ry: 4.0 },
+        { dx: 25,  dy: -1, rx: 5.0, ry: 3.8 }
+      ];
+
+      stones.forEach(s => {
+        const sx = startX + s.dx;
+        const sy = startY + s.dy;
+
+        ctx.strokeStyle = 'rgba(235, 250, 255, 0.70)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(sx, sy - 1, s.rx + 2, Math.PI * 0.9, Math.PI * 2.1);
+        ctx.stroke();
+
+        ctx.fillStyle = '#2A303A';
+        ctx.beginPath();
+        ctx.ellipse(sx - 1, sy + 1.5, s.rx, s.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#5A626E';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, s.rx, s.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#7E8898';
+        ctx.beginPath();
+        ctx.ellipse(sx + 1, sy - 1, s.rx * 0.5, s.ry * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    drawVistaBench(ctx, x, y) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 25, 20, 0.40)';
+      ctx.fillRect(x - 12, y + 2, 24, 3);
+
+      ctx.fillStyle = '#1D2228';
+      ctx.fillRect(x - 9, y - 4, 2, 7);
+      ctx.fillRect(x + 7, y - 4, 2, 7);
+
+      ctx.fillStyle = '#6E4E36';
+      ctx.fillRect(x - 11, y - 3, 22, 3);
+      ctx.fillStyle = '#8B6547';
+      ctx.fillRect(x - 11, y - 3, 22, 1);
+
+      ctx.fillStyle = '#6E4E36';
+      ctx.fillRect(x - 11, y - 9, 22, 2.5);
+      ctx.fillRect(x - 11, y - 13, 22, 2.5);
+      ctx.fillStyle = '#8B6547';
+      ctx.fillRect(x - 11, y - 13, 22, 0.8);
+      ctx.restore();
+    }
+
+    drawSunbeamShaft(ctx, x, y, len = 180, w = 32) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.PI / 4);
+
+      const beamGrad = ctx.createLinearGradient(0, -w/2, 0, w/2);
+      beamGrad.addColorStop(0.0, 'rgba(255, 252, 220, 0.0)');
+      beamGrad.addColorStop(0.5, 'rgba(255, 250, 215, 0.08)');
+      beamGrad.addColorStop(1.0, 'rgba(255, 252, 220, 0.0)');
+
+      ctx.fillStyle = beamGrad;
+      ctx.fillRect(0, -w/2, len, w);
+      ctx.restore();
+    }
+
+    drawMushroomFairyRing(ctx, x, y) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(90, 160, 80, 0.35)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (let i = 0; i < 7; i++) {
+        const angle = (i / 7) * Math.PI * 2;
+        const mx = x + Math.cos(angle) * 14;
+        const my = y + Math.sin(angle) * 14;
+
+        ctx.fillStyle = '#EDE8DB';
+        ctx.fillRect(mx - 0.7, my - 2, 1.4, 3);
+
+        ctx.fillStyle = '#D92B2B';
+        ctx.beginPath();
+        ctx.arc(mx, my - 2.5, 2.2, Math.PI, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(mx - 1, my - 3.5, 0.7, 0.7);
+        ctx.fillRect(mx + 0.5, my - 3.0, 0.7, 0.7);
+      }
+      ctx.restore();
+    }
+
+    drawWindingPath(ctx, points, width = 20) {
+      if (!points || points.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(155, 140, 116, 0.55)';
+      ctx.lineWidth = width + 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        const xc = (points[i - 1].x + points[i].x) / 2;
+        const yc = (points[i - 1].y + points[i].y) / 2;
+        ctx.quadraticCurveTo(points[i - 1].x, points[i - 1].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#8C7B62';
+      ctx.lineWidth = width;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#7A6952';
+      ctx.lineWidth = width - 6;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawSoaringHawk(ctx, hx, hy, angle, flap) {
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(angle);
+      ctx.fillStyle = '#2C221E';
+      ctx.fillRect(-1, -3, 2, 6);
+      const wingAngle = Math.max(-0.4, Math.min(0.4, flap * 0.3));
+      ctx.strokeStyle = '#2C221E';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-6, -wingAngle * 5);
+      ctx.lineTo(-12, -wingAngle * 2.5);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(6, -wingAngle * 5);
+      ctx.lineTo(12, -wingAngle * 2.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     drawAnimatedVistaAccents(ctx) {
       const now = Date.now();
 
-      // 1. Lake water sparkles (6 pulsing diamond glints)
+      // 1. Lake water sparkles & brook riffle pulses (8 lake diamond glints + 4 brook riffles)
       const lakeCx = 8 * 32;
-      const lakeCy = 30 * 32;
+      const lakeCy = 31 * 32;
       const glints = [
-        { dx: -55, dy: -25 },
-        { dx: 45, dy: -15 },
-        { dx: -20, dy: 35 },
-        { dx: 70, dy: 18 },
-        { dx: -70, dy: 10 },
-        { dx: 15, dy: -45 }
+        { dx: -65, dy: -28 },
+        { dx: 55, dy: -18 },
+        { dx: -25, dy: 42 },
+        { dx: 80, dy: 22 },
+        { dx: -80, dy: 12 },
+        { dx: 18, dy: -52 },
+        { dx: -35, dy: -10 },
+        { dx: 40, dy: 45 }
       ];
 
       glints.forEach((g, i) => {
-        const pulse = 0.35 + 0.35 * Math.sin(now * 0.003 + i * 1.3);
-        if (pulse > 0.05) {
+        const pulse = Math.sin(now * 0.0035 + i * 1.3);
+        if (pulse > 0.15) {
           const gx = lakeCx + g.dx;
           const gy = lakeCy + g.dy;
-          const r = 2.0;
-          ctx.fillStyle = `rgba(255, 250, 230, ${pulse.toFixed(2)})`;
+          const r = 2.4 * pulse;
+          ctx.fillStyle = `rgba(255, 252, 235, ${(pulse * 0.85).toFixed(2)})`;
           ctx.beginPath();
           ctx.moveTo(gx, gy - r);
           ctx.lineTo(gx + r, gy);
@@ -562,17 +1412,53 @@
         }
       });
 
+      // Brook riffle sparkles
+      for (let i = 0; i < 4; i++) {
+        const ry = 780 + i * 110;
+        const rx = 912 + Math.sin((ry - 704) * 0.012) * 28 + Math.cos((ry - 704) * 0.025) * 14;
+        const pulse = Math.sin(now * 0.004 + i * 1.7);
+        if (pulse > 0.2) {
+          ctx.fillStyle = `rgba(240, 252, 255, ${(pulse * 0.7).toFixed(2)})`;
+          ctx.fillRect(rx - 2, ry, 4, 1.5);
+        }
+      }
+
       // 2. Valley mist wisps (subtle drifting ambient fog)
-      const mistDrift = (now * 0.008) % (44 * 32);
+      const mistDrift = ((now * 0.008) % 3456) - 1024;
       ctx.fillStyle = 'rgba(200, 215, 235, 0.06)';
       ctx.beginPath();
-      ctx.ellipse(mistDrift, 160, 180, 22, 0.02, 0, Math.PI * 2);
+      ctx.ellipse(mistDrift, 160, 200, 24, 0.02, 0, Math.PI * 2);
       ctx.fill();
 
-      const ravineDriftY = 22 * 32 + ((now * 0.006) % (12 * 32));
-      ctx.beginPath();
-      ctx.ellipse(28.5 * 32, ravineDriftY, 40, 16, 0.05, 0, Math.PI * 2);
-      ctx.fill();
+      // 3. Distant soaring hawks (2 circling parametric birds)
+      const hawkTime = now * 0.0006;
+      const h1x = -150 + Math.cos(hawkTime) * 180;
+      const h1y = 90 + Math.sin(hawkTime) * 55;
+      const h1Angle = Math.atan2(Math.cos(hawkTime) * 55, -Math.sin(hawkTime) * 180);
+      const h1Flap = Math.sin(now * 0.006);
+      this.drawSoaringHawk(ctx, h1x, h1y, h1Angle, h1Flap);
+
+      const h2Time = now * 0.00045 + 2.5;
+      const h2x = 1650 + Math.cos(h2Time) * 220;
+      const h2y = 80 + Math.sin(h2Time) * 65;
+      const h2Angle = Math.atan2(Math.cos(h2Time) * 65, -Math.sin(h2Time) * 220);
+      const h2Flap = Math.sin(now * 0.005 + 1.2);
+      this.drawSoaringHawk(ctx, h2x, h2y, h2Angle, h2Flap);
+
+      // 4. Summer pollen motes / floating petal particles (16 drifting motes)
+      for (let i = 0; i < 16; i++) {
+        const seedOffset = i * 211;
+        const px = (((seedOffset - now * 0.02) % 3000) + 3000) % 3000 - 800;
+        const py = (((seedOffset * 3 + now * 0.015 + Math.sin(now * 0.002 + i) * 12) % 2400) + 2400) % 2400 - 400;
+        const alpha = 0.4 + 0.3 * Math.sin(now * 0.003 + i);
+        if (i % 3 === 0) {
+          ctx.fillStyle = `rgba(255, 215, 225, ${alpha.toFixed(2)})`;
+          ctx.fillRect(px, py, 2, 2);
+        } else {
+          ctx.fillStyle = `rgba(255, 245, 180, ${alpha.toFixed(2)})`;
+          ctx.fillRect(px, py, 1.5, 1.5);
+        }
+      }
     }
 
     drawArchitecturalWindow(ctx, px, py, TILE, map) {

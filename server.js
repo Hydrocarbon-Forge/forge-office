@@ -517,11 +517,12 @@ function handleClientMessage(client, msg) {
     }
 
     case 'va': {
-      // Proximity voice audio packet: { t: 'va', d: b64chunk, l: level }
+      // Proximity voice audio packet: { t: 'va', d: b64chunk, l: level, sr: sampleRate }
       if (typeof msg.d !== 'string') break;
       const level = typeof msg.l === 'number' ? msg.l : 0.5;
       const senderX = client.x;
       const senderY = client.y;
+      const sr = typeof msg.sr === 'number' ? msg.sr : undefined;
 
       // Forward to every other joined client whose player is within 800px (no echo back to sender)
       for (const [otherId, otherClient] of clients) {
@@ -534,6 +535,7 @@ function handleClientMessage(client, msg) {
               name: client.name,
               d: msg.d,
               l: level,
+              sr: sr,
               x: senderX,
               y: senderY
             });

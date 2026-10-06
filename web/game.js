@@ -1054,6 +1054,11 @@
         sfx.playChime();
         this.showNotification(`Welcome to Forge Office, ${this.player.name}!`);
 
+        const startMonitorCheckbox = document.getElementById('startMonitorCheckbox');
+        if (startMonitorCheckbox && this.voice) {
+          this.voice.setSelfMonitor(startMonitorCheckbox.checked);
+        }
+
         const startMicCheckbox = document.getElementById('startMicCheckbox');
         if (startMicCheckbox && startMicCheckbox.checked && this.voice) {
           this.voice.enableMic();
@@ -1094,6 +1099,16 @@
             const isMuted = this.voice.toggleMuteVoice();
             this.showNotification(isMuted ? 'Voice: Mic Muted (V)' : 'Voice: Mic Active (V)');
           }
+          this.updateVoiceUI();
+        });
+      }
+
+      const monitorBtn = document.getElementById('monitorBtn');
+      if (monitorBtn) {
+        monitorBtn.addEventListener('click', () => {
+          if (!this.voice) return;
+          const enabled = this.voice.toggleSelfMonitor();
+          this.showNotification(enabled ? 'Self-Monitor: ON (Hear Yourself)' : 'Self-Monitor: OFF');
           this.updateVoiceUI();
         });
       }
@@ -1141,6 +1156,17 @@
         } else {
           micBtn.innerText = '🎤 MIC: ON (V)';
           micBtn.classList.remove('active');
+        }
+      }
+
+      const monitorBtn = document.getElementById('monitorBtn');
+      if (monitorBtn && this.voice) {
+        if (this.voice.isSelfMonitorEnabled) {
+          monitorBtn.innerText = '🎧 MONITOR: ON';
+          monitorBtn.classList.add('active');
+        } else {
+          monitorBtn.innerText = '🎧 MONITOR: OFF';
+          monitorBtn.classList.remove('active');
         }
       }
 

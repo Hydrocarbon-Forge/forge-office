@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-06T21:14:58.163530+00:00",
-  "updated_ts": 1791321298.16353,
+  "updated": "2026-10-06T22:16:58.125585+00:00",
+  "updated_ts": 1791325018.125585,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
@@ -63,61 +63,61 @@
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 98.41,
+    "equity": 98.53,
     "start": 100.0,
-    "total_pnl": -1.59,
-    "total_pct": -1.59,
-    "day_pnl": -1.39,
-    "day_pct": -1.39,
-    "cash": 6.19,
-    "cash_pct": 6.3,
-    "total_fees": 0.18,
+    "total_pnl": -1.47,
+    "total_pct": -1.47,
+    "day_pnl": -1.27,
+    "day_pct": -1.27,
+    "cash": 0.03,
+    "cash_pct": 0.0,
+    "total_fees": 0.19,
     "tax_rate": 0.15,
     "taxable_gains": 0.0,
     "capital_gains_tax": 0.0,
-    "real_total": 98.41,
-    "taxed_total": 98.41,
+    "real_total": 98.53,
+    "taxed_total": 98.53,
     "holdings": [
-      {
-        "sym": "LINK",
-        "qty": 1.7737,
-        "px": 13.96,
-        "val": 24.76,
-        "w": 25.2
-      },
       {
         "sym": "AVAX",
         "qty": 2.1579,
-        "px": 11.43,
-        "val": 24.66,
+        "px": 11.57,
+        "val": 24.98,
+        "w": 25.3
+      },
+      {
+        "sym": "LINK",
+        "qty": 1.7737,
+        "px": 13.93,
+        "val": 24.71,
         "w": 25.1
+      },
+      {
+        "sym": "SOL",
+        "qty": 0.2032,
+        "px": 121.18,
+        "val": 24.62,
+        "w": 25.0
       },
       {
         "sym": "WIF",
         "qty": 98.9297,
-        "px": 0.25,
-        "val": 24.37,
-        "w": 24.8
-      },
-      {
-        "sym": "SOL",
-        "qty": 0.1525,
-        "px": 120.88,
-        "val": 18.43,
-        "w": 18.7
+        "px": 0.24,
+        "val": 24.19,
+        "w": 24.5
       }
     ],
     "trades_now": [
       {
         "sym": "SOL",
-        "act": "sell",
-        "qty": 0.0508,
-        "px": 120.76,
-        "reason": "forced trim (weakest)",
+        "act": "buy",
+        "qty": 0.0507,
+        "px": 121.3,
+        "reason": "conviction entry/top-up",
         "fee": 0.01
       }
     ],
-    "n_trades": 17,
+    "n_trades": 18,
     "quotes_ok": 7,
     "quotes_total": 9
   },

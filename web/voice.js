@@ -1,7 +1,5 @@
 // web/voice.js — Proximity Voice Chat (Capture, DDA Wall Occlusion, Distance Attenuation, Lowpass Filter, Playback)
 (function (global) {
-  const CHUNK_SIZE = 960; // 960 samples @ 48kHz = 20ms
-  const SAMPLE_RATE = 48000;
   const MAX_DISTANCE = 800; // 800px max hearing distance
 
   // Math helper: DDA raycast on tile grid from (x0, y0) to (x1, y1)
@@ -136,19 +134,21 @@
       this.map = null;
       this.getPlayerPos = null;
 
+      // Dynamic sample rate & chunk size (20ms derived from AudioContext)
+      this.sr = (typeof AudioContext !== 'undefined' && AudioContext.prototype && AudioContext.sampleRate) || 44100;
+      this.chunkSize = Math.round(this.sr * 0.02);
+      this.sampleAccumulator = [];
+
       // Mic state
       this.micStream = null;
       this.micSource = null;
       this.scriptProcessor = null;
+      this.selfMonitorGainNode = null;
+      this.isSelfMonitorEnabled = true; // Default: ON per spec
+      this.hasShownMonitorToast = false;
       this.isMicEnabled = false;
       this.isVoiceMuted = false; // V key: mic off, keep receiving
       this.isGlobalMuted = false; // M key: both voice and sfx
-
-      // Gating & AGC state
-      this.consecutiveVoiceChunks = 0;
-      this.gateOpen = false;
-      this.gateCloseTimer = 0;
-      this.lastTxTime = 0;
       this.isTransmitting = false;
 
       // Active voice playback sources: Map<string, SourcePlayer>
@@ -168,6 +168,10 @@
       this.map = map;
       this.getPlayerPos = getPlayerPos;
       this.onToast = onToast;
+      if (this.audioCtx && this.audioCtx.sampleRate) {
+        this.sr = this.audioCtx.sampleRate;
+        this.chunkSize = Math.round(this.sr * 0.02);
+      }
     }
 
     async enableMic() {
@@ -178,12 +182,17 @@
           throw new Error('getUserMedia not supported');
         }
 
+        if (this.audioCtx && this.audioCtx.sampleRate) {
+          this.sr = this.audioCtx.sampleRate;
+          this.chunkSize = Math.round(this.sr * 0.02);
+        }
+
+        // Raw mic with NO browser audio processing per specification
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: false,
-            sampleRate: SAMPLE_RATE
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
           }
         });
 
@@ -191,6 +200,15 @@
         this.setupCapturePipeline(stream);
         this.isMicEnabled = true;
         this.isVoiceMuted = false;
+
+        // One-time self-monitor guidance toast on mic enable
+        if (this.isSelfMonitorEnabled && !this.hasShownMonitorToast) {
+          this.hasShownMonitorToast = true;
+          if (this.onToast) {
+            this.onToast("Heard yourself? Lower the music (M) if there's feedback.");
+          }
+        }
+
         return true;
       } catch (err) {
         console.warn('Voice mic access denied or failed:', err);
@@ -215,14 +233,54 @@
         } catch {}
         this.scriptProcessor = null;
       }
+      if (this.selfMonitorGainNode) {
+        try {
+          this.selfMonitorGainNode.disconnect();
+        } catch {}
+        this.selfMonitorGainNode = null;
+      }
       if (this.micSource) {
         try {
           this.micSource.disconnect();
         } catch {}
         this.micSource = null;
       }
+      this.sampleAccumulator = [];
       this.isMicEnabled = false;
       this.isTransmitting = false;
+    }
+
+    toggleSelfMonitor() {
+      this.isSelfMonitorEnabled = !this.isSelfMonitorEnabled;
+      this.updateSelfMonitorGain();
+      if (this.isSelfMonitorEnabled && !this.hasShownMonitorToast) {
+        this.hasShownMonitorToast = true;
+        if (this.onToast) {
+          this.onToast("Heard yourself? Lower the music (M) if there's feedback.");
+        }
+      }
+      return this.isSelfMonitorEnabled;
+    }
+
+    setSelfMonitor(enabled) {
+      this.isSelfMonitorEnabled = Boolean(enabled);
+      this.updateSelfMonitorGain();
+      if (this.isSelfMonitorEnabled && !this.hasShownMonitorToast) {
+        this.hasShownMonitorToast = true;
+        if (this.onToast) {
+          this.onToast("Heard yourself? Lower the music (M) if there's feedback.");
+        }
+      }
+      return this.isSelfMonitorEnabled;
+    }
+
+    updateSelfMonitorGain() {
+      if (!this.selfMonitorGainNode || !this.audioCtx) return;
+      const target = (this.isSelfMonitorEnabled && !this.isVoiceMuted && !this.isGlobalMuted) ? 0.35 : 0.0;
+      this.selfMonitorGainNode.gain.value = target;
+      try {
+        this.selfMonitorGainNode.gain.setValueAtTime(target, this.audioCtx.currentTime);
+      } catch {}
     }
 
     toggleMuteVoice() {
@@ -230,11 +288,13 @@
       if (this.isVoiceMuted) {
         this.isTransmitting = false;
       }
+      this.updateSelfMonitorGain();
       return this.isVoiceMuted;
     }
 
     setGlobalMute(muted) {
       this.isGlobalMuted = Boolean(muted);
+      this.updateSelfMonitorGain();
     }
 
     setupCapturePipeline(stream) {
@@ -243,12 +303,26 @@
         this.audioCtx.resume().catch(() => {});
       }
 
-      this.micSource = this.audioCtx.createMediaStreamSource(stream);
-      // Fallback script processor for cross-browser mono chunking
-      const bufferSize = 1024;
-      this.scriptProcessor = this.audioCtx.createScriptProcessor(bufferSize, 1, 1);
+      this.sr = this.audioCtx.sampleRate;
+      this.chunkSize = Math.round(this.sr * 0.02);
 
-      let sampleAccumulator = [];
+      this.micSource = this.audioCtx.createMediaStreamSource(stream);
+
+      // Local self-monitor: raw mic -> GainNode (~0.35) -> ctx.destination
+      this.selfMonitorGainNode = this.audioCtx.createGain();
+      const initialMonitorGain = (this.isSelfMonitorEnabled && !this.isVoiceMuted && !this.isGlobalMuted) ? 0.35 : 0.0;
+      this.selfMonitorGainNode.gain.value = initialMonitorGain;
+      try {
+        this.selfMonitorGainNode.gain.setValueAtTime(initialMonitorGain, this.audioCtx.currentTime);
+      } catch {}
+      this.micSource.connect(this.selfMonitorGainNode);
+      this.selfMonitorGainNode.connect(this.audioCtx.destination);
+
+      // Web Audio ScriptProcessor requires power-of-two buffer size (256..16384).
+      // We use 512 for low latency (~10-11ms per callback) and exact 20ms chunk framing.
+      const bufferSize = 512;
+      this.scriptProcessor = this.audioCtx.createScriptProcessor(bufferSize, 1, 1);
+      this.sampleAccumulator = [];
 
       this.scriptProcessor.onaudioprocess = (e) => {
         if (!this.isMicEnabled || this.isVoiceMuted || this.isGlobalMuted) {
@@ -258,87 +332,55 @@
 
         const input = e.inputBuffer.getChannelData(0);
         for (let i = 0; i < input.length; i++) {
-          sampleAccumulator.push(input[i]);
-          if (sampleAccumulator.length >= CHUNK_SIZE) {
-            const chunk = sampleAccumulator.splice(0, CHUNK_SIZE);
-            this.processAndSendChunk(chunk);
-          }
+          this.sampleAccumulator.push(input[i]);
+        }
+
+        // Dispatch continuous 20ms chunks without gating or throttle
+        while (this.sampleAccumulator.length >= this.chunkSize) {
+          const chunk = this.sampleAccumulator.splice(0, this.chunkSize);
+          this.processAndSendChunk(chunk);
         }
       };
 
       this.micSource.connect(this.scriptProcessor);
-      // Connect to a mute sink to prevent feedback
-      const gain = this.audioCtx.createGain();
-      gain.gain.value = 0;
-      this.scriptProcessor.connect(gain);
-      gain.connect(this.audioCtx.destination);
+
+      // Keep script processor alive with silent gain sink to destination
+      const silentGain = this.audioCtx.createGain();
+      silentGain.gain.value = 0;
+      this.scriptProcessor.connect(silentGain);
+      silentGain.connect(this.audioCtx.destination);
     }
 
     processAndSendChunk(samples) {
-      const now = performance.now();
-      // Throttle to max 1 chunk per ~20ms
-      if (now - this.lastTxTime < 18) return;
+      this.isTransmitting = true;
 
-      // 1. RMS Calculation
-      let sumSq = 0;
+      // Raw peak of chunk for HUD level indicator only (never for gating)
       let peak = 0;
-      for (let i = 0; i < samples.length; i++) {
-        const val = samples[i];
-        sumSq += val * val;
-        const abs = Math.abs(val);
+      const len = samples.length;
+      for (let i = 0; i < len; i++) {
+        const abs = Math.abs(samples[i]);
         if (abs > peak) peak = abs;
       }
-      const rms = Math.sqrt(sumSq / samples.length);
 
-      // Gate: only transmit when > 0.06 RMS over 3 consecutive chunks
-      if (rms > 0.06) {
-        this.consecutiveVoiceChunks++;
-        if (this.consecutiveVoiceChunks >= 3) {
-          this.gateOpen = true;
-          this.gateCloseTimer = 0.35; // 350ms release hangover
-        }
-      } else {
-        this.consecutiveVoiceChunks = 0;
-        if (this.gateOpen) {
-          this.gateCloseTimer -= 0.02;
-          if (this.gateCloseTimer <= 0) {
-            this.gateOpen = false;
-          }
-        }
-      }
-
-      if (!this.gateOpen) {
-        this.isTransmitting = false;
-        return;
-      }
-
-      this.isTransmitting = true;
-      this.lastTxTime = now;
-
-      // AGC-ish normalization to ~0.8 peak
-      let scale = 1.0;
-      if (peak > 0.01) {
-        scale = Math.min(3.5, 0.8 / peak);
-      }
-
-      // Convert float [-1.0, 1.0] to PCM16
-      const pcm16 = new Int16Array(CHUNK_SIZE);
-      for (let i = 0; i < CHUNK_SIZE; i++) {
-        const clamped = Math.max(-1.0, Math.min(1.0, samples[i] * scale));
+      // Convert float [-1.0, 1.0] to PCM16 with only a clamp to ±1.0
+      // Raw capture: no gain, no AGC normalization, no RMS gate threshold
+      const pcm16 = new Int16Array(len);
+      for (let i = 0; i < len; i++) {
+        const clamped = Math.max(-1.0, Math.min(1.0, samples[i]));
         pcm16[i] = Math.round(clamped * 32767);
       }
 
       const b64 = int16ToB64(pcm16);
-      const level = Math.min(1.0, peak * scale);
+      const level = Math.min(1.0, peak);
 
-      // Send via WS
+      // Send unconditionally via network bridge
       if (this.net && typeof this.net.sendVoiceChunk === 'function') {
-        this.net.sendVoiceChunk(b64, level);
+        this.net.sendVoiceChunk(b64, level, this.sr);
       }
     }
 
     handleVoicePacket(pkt) {
-      // Received { t: 'va', from, name, d, l, x, y }
+      // Received { t: 'va', from, name, d, l, sr, x, y }
       if (!pkt || !pkt.from || !pkt.d) return;
 
       const id = pkt.from;
@@ -358,7 +400,7 @@
       // Decode PCM16
       try {
         const pcm16 = b64ToInt16(pkt.d);
-        source.enqueueChunk(pcm16);
+        source.enqueueChunk(pcm16, pkt.sr);
       } catch (err) {
         console.warn('Voice decode error:', err);
       }
@@ -387,7 +429,7 @@
       let isPlaying = false;
       let nextPlayTime = 0;
 
-      return {
+      const player = {
         id,
         name,
         x: 0,
@@ -399,12 +441,33 @@
         currentGain: 0,
         targetGain: 0,
         occlusionFactor: 1.0,
-        enqueueChunk(pcm16) {
+        enqueueChunk: (pcm16, packetSr) => {
           if (!ctx) return;
-          const floatSamples = new Float32Array(pcm16.length);
-          for (let i = 0; i < pcm16.length; i++) {
-            floatSamples[i] = pcm16[i] / 32767.0;
+          const currentSr = this.sr || ctx.sampleRate;
+          let floatSamples;
+
+          // Cross-sample-rate resampling: if sender and receiver sample rates differ,
+          // linearly resample so chunk timing stays exactly 20ms at receiver context rate
+          if (packetSr && Math.abs(packetSr - currentSr) > 1) {
+            const targetLen = Math.round(pcm16.length * (currentSr / packetSr));
+            floatSamples = new Float32Array(targetLen);
+            const ratio = (pcm16.length - 1) / Math.max(1, targetLen - 1);
+            for (let i = 0; i < targetLen; i++) {
+              const srcIdx = i * ratio;
+              const i0 = Math.floor(srcIdx);
+              const i1 = Math.min(pcm16.length - 1, i0 + 1);
+              const frac = srcIdx - i0;
+              const s0 = pcm16[i0] / 32767.0;
+              const s1 = pcm16[i1] / 32767.0;
+              floatSamples[i] = s0 + frac * (s1 - s0);
+            }
+          } else {
+            floatSamples = new Float32Array(pcm16.length);
+            for (let i = 0; i < pcm16.length; i++) {
+              floatSamples[i] = pcm16[i] / 32767.0;
+            }
           }
+
           ringBuffer.push(floatSamples);
           // Limit ring buffer to ~200ms
           while (ringBuffer.length > 10) {
@@ -429,7 +492,7 @@
         }
       };
 
-      function scheduleNext() {
+      const scheduleNext = () => {
         if (!isPlaying || !ctx) return;
         if (ringBuffer.length === 0) {
           isPlaying = false;
@@ -437,7 +500,8 @@
         }
 
         const chunk = ringBuffer.shift();
-        const buffer = ctx.createBuffer(1, chunk.length, SAMPLE_RATE);
+        const currentSr = this.sr || ctx.sampleRate;
+        const buffer = ctx.createBuffer(1, chunk.length, currentSr);
         buffer.copyToChannel(chunk, 0);
 
         const node = ctx.createBufferSource();
@@ -455,7 +519,9 @@
             isPlaying = false;
           }
         };
-      }
+      };
+
+      return player;
     }
 
     update(dt) {
