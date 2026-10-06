@@ -53,8 +53,17 @@
     }
 
     clear() {
-      this.ctx.fillStyle = '#1A1C23';
-      this.ctx.fillRect(0, 0, this.canvas.width / this.dpr, this.canvas.height / this.dpr);
+      const w = this.canvas.width / this.dpr;
+      const h = this.canvas.height / this.dpr;
+      // Screen-space background gradient continuing the vista so screen edges never show dead background
+      const grad = this.ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0.0, '#8FC7EA'); // Soft azure daytime sky top
+      grad.addColorStop(0.38, '#CBE4F2'); // Sky-to-horizon transition
+      grad.addColorStop(0.45, '#EAF4DC'); // Warm horizon haze (~45% down the screen)
+      grad.addColorStop(0.50, '#5C8A50'); // Meadow ridge
+      grad.addColorStop(1.0, '#3E6B3F'); // Brighter green meadow ground
+      this.ctx.fillStyle = grad;
+      this.ctx.fillRect(0, 0, w, h);
     }
 
     // -------------------------------------------------------------------------
@@ -65,40 +74,70 @@
       const TILE = map.tile || 32;
       const mapW = map.width * TILE;
       const mapH = map.height * TILE;
+      const margin = 1024;
+      this.vistaMargin = margin;
+      const totalW = mapW + margin * 2;
+      const totalH = mapH + margin * 2;
 
       if (!this.vistaCanvas) {
         this.vistaCanvas = document.createElement('canvas');
       }
-      this.vistaCanvas.width = mapW;
-      this.vistaCanvas.height = mapH;
+      this.vistaCanvas.width = totalW;
+      this.vistaCanvas.height = totalH;
       const ctx = this.vistaCanvas.getContext('2d');
-      ctx.clearRect(0, 0, mapW, mapH);
+      ctx.clearRect(0, 0, totalW, totalH);
+
+      ctx.save();
+      ctx.translate(margin, margin);
 
       // 1. Sky & Distant Mountain Peaks (North Vista & Sky Canopy)
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, 260);
-      skyGrad.addColorStop(0.0, '#232738'); // Deep twilight slate-periwinkle
-      skyGrad.addColorStop(0.35, '#3E3B5C'); // Lavender twilight
-      skyGrad.addColorStop(0.65, '#6B4D68'); // Dusty rose
-      skyGrad.addColorStop(0.85, '#B86858'); // Sunset terracotta
-      skyGrad.addColorStop(1.0, '#F4B37D');  // Golden horizon haze
+      // Bright daytime sky gradient: soft azure top -> pale warm haze at horizon
+      const skyGrad = ctx.createLinearGradient(0, -margin, 0, 260);
+      skyGrad.addColorStop(0.0, '#8FC7EA'); // Soft azure
+      skyGrad.addColorStop(Math.min(1.0, (margin + 60) / (margin + 260)), '#8FC7EA');
+      skyGrad.addColorStop(Math.min(1.0, (margin + 170) / (margin + 260)), '#BFE0F2');
+      skyGrad.addColorStop(1.0, '#EAF4DC');  // Pale warm haze near horizon
       ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, mapW, 260);
+      ctx.fillRect(-margin, -margin, totalW, 260 + margin);
 
-      // Wispy Cirrus Clouds
-      ctx.fillStyle = 'rgba(255, 230, 210, 0.18)';
+      // Soft Sun (pale yellow disc + gentle glow)
+      const sunX = mapW * 0.72;
+      const sunY = 70;
+      const sunGlow = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 70);
+      sunGlow.addColorStop(0.0, 'rgba(255, 253, 220, 0.95)');
+      sunGlow.addColorStop(0.25, 'rgba(255, 248, 195, 0.50)');
+      sunGlow.addColorStop(0.60, 'rgba(255, 242, 180, 0.18)');
+      sunGlow.addColorStop(1.0, 'rgba(255, 242, 180, 0.0)');
+      ctx.fillStyle = sunGlow;
       ctx.beginPath();
-      ctx.ellipse(mapW * 0.22, 38, 170, 13, -0.05, 0, Math.PI * 2);
-      ctx.ellipse(mapW * 0.72, 62, 210, 15, 0.04, 0, Math.PI * 2);
-      ctx.ellipse(mapW * 0.45, 90, 140, 11, -0.02, 0, Math.PI * 2);
+      ctx.arc(sunX, sunY, 70, 0, Math.PI * 2);
       ctx.fill();
 
-      // Peak Layer 1 (Furthest Snowy Crests)
-      ctx.fillStyle = '#31334E';
+      ctx.fillStyle = '#FFFDE8';
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wispy Cirrus Clouds
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.beginPath();
+      ctx.ellipse(mapW * 0.22, 42, 180, 14, -0.05, 0, Math.PI * 2);
+      ctx.ellipse(mapW * 0.82, 60, 220, 16, 0.04, 0, Math.PI * 2);
+      ctx.ellipse(mapW * 0.45, 95, 150, 12, -0.02, 0, Math.PI * 2);
+      ctx.ellipse(-300, 55, 240, 15, 0.02, 0, Math.PI * 2);
+      ctx.ellipse(mapW + 350, 75, 260, 16, -0.03, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Peak Layer 1 (Furthest Snowy Crests — airy soft blue-lilac #9FB4D8)
+      ctx.fillStyle = '#9FB4D8';
       ctx.beginPath();
       const p1 = [
+        { x: -margin, y: 110 }, { x: -800, y: 55 }, { x: -620, y: 105 }, { x: -440, y: 45 }, { x: -280, y: 95 }, { x: -140, y: 50 },
         { x: 0, y: 130 }, { x: 120, y: 65 }, { x: 220, y: 110 }, { x: 380, y: 45 },
         { x: 510, y: 105 }, { x: 670, y: 40 }, { x: 800, y: 95 }, { x: 960, y: 55 },
-        { x: 1120, y: 110 }, { x: 1260, y: 50 }, { x: mapW, y: 100 }, { x: mapW, y: 260 }, { x: 0, y: 260 }
+        { x: 1120, y: 110 }, { x: 1260, y: 50 }, { x: mapW, y: 100 },
+        { x: mapW + 150, y: 55 }, { x: mapW + 320, y: 105 }, { x: mapW + 500, y: 45 }, { x: mapW + 680, y: 95 }, { x: mapW + 850, y: 50 }, { x: mapW + margin, y: 110 },
+        { x: mapW + margin, y: 260 }, { x: -margin, y: 260 }
       ];
       ctx.moveTo(p1[0].x, p1[0].y);
       p1.forEach(p => ctx.lineTo(p.x, p.y));
@@ -106,7 +145,7 @@
       ctx.fill();
 
       // Snow / Quartz Peak Highlights
-      ctx.strokeStyle = 'rgba(215, 205, 235, 0.45)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.70)';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       p1.forEach(p => {
@@ -119,61 +158,68 @@
       });
       ctx.stroke();
 
-      // Peak Layer 2 (Mid Massif)
-      ctx.fillStyle = '#252D42';
+      // Peak Layer 2 (Mid Massif — soft blue-slate #7496B2)
+      ctx.fillStyle = '#7496B2';
       ctx.beginPath();
       const p2 = [
+        { x: -margin, y: 130 }, { x: -750, y: 90 }, { x: -550, y: 140 }, { x: -350, y: 85 }, { x: -180, y: 135 },
         { x: 0, y: 160 }, { x: 180, y: 95 }, { x: 340, y: 145 }, { x: 560, y: 80 },
         { x: 740, y: 135 }, { x: 890, y: 85 }, { x: 1080, y: 125 }, { x: 1280, y: 75 },
-        { x: mapW, y: 120 }, { x: mapW, y: 260 }, { x: 0, y: 260 }
+        { x: mapW, y: 120 },
+        { x: mapW + 180, y: 80 }, { x: mapW + 360, y: 135 }, { x: mapW + 580, y: 85 }, { x: mapW + 780, y: 140 }, { x: mapW + margin, y: 125 },
+        { x: mapW + margin, y: 260 }, { x: -margin, y: 260 }
       ];
       ctx.moveTo(p2[0].x, p2[0].y);
       p2.forEach(p => ctx.lineTo(p.x, p.y));
       ctx.closePath();
       ctx.fill();
 
-      // Peak Layer 3 (Pine Spire Ridge)
-      ctx.fillStyle = '#1D2633';
+      // Peak Layer 3 (Pine Spire Ridge — mountain pine green #466A52)
+      ctx.fillStyle = '#466A52';
       ctx.beginPath();
-      ctx.moveTo(0, 185);
-      for (let x = 0; x <= mapW; x += 16) {
+      ctx.moveTo(-margin, 185);
+      for (let x = -margin; x <= mapW + margin; x += 16) {
         const ridgeY = 150 + Math.sin(x * 0.015) * 18;
         ctx.lineTo(x, ridgeY);
         ctx.lineTo(x + 5, ridgeY - 9);
         ctx.lineTo(x + 10, ridgeY);
       }
-      ctx.lineTo(mapW, 260);
-      ctx.lineTo(0, 260);
+      ctx.lineTo(mapW + margin, 260);
+      ctx.lineTo(-margin, 260);
       ctx.closePath();
       ctx.fill();
 
       // Atmospheric Valley Mist
       const mistGrad = ctx.createLinearGradient(0, 130, 0, 190);
-      mistGrad.addColorStop(0, 'rgba(180, 195, 215, 0.0)');
-      mistGrad.addColorStop(0.5, 'rgba(180, 195, 215, 0.35)');
-      mistGrad.addColorStop(1, 'rgba(180, 195, 215, 0.0)');
+      mistGrad.addColorStop(0, 'rgba(235, 245, 255, 0.0)');
+      mistGrad.addColorStop(0.5, 'rgba(235, 245, 255, 0.35)');
+      mistGrad.addColorStop(1, 'rgba(235, 245, 255, 0.0)');
       ctx.fillStyle = mistGrad;
-      ctx.fillRect(0, 130, mapW, 60);
+      ctx.fillRect(-margin, 130, totalW, 60);
 
-      // 2. Base Ground Terrain for Outside Voids
+      // Extended Meadow Background beyond Map Bounds (y >= 260)
+      ctx.fillStyle = '#3E6B3F';
+      ctx.fillRect(-margin, 260, totalW, mapH + margin - 260);
+
+      // 2. Base Ground Terrain for Outside Voids (brighter day meadow greens)
       for (let y = 0; y < map.height; y++) {
         for (let x = 0; x < map.width; x++) {
           if (map.getTile(x, y) === 0) {
             const px = x * TILE;
             const py = y * TILE;
-            let groundColor = '#1C2E24';
+            let groundColor = '#3E6B3F';
             if (x <= 16 && y >= 22) {
-              groundColor = '#243A2C'; // Southwest sanctuary: lush meadow
+              groundColor = '#528246'; // Southwest sanctuary: bright lush meadow
             } else if (x >= 27 && x <= 29 && y >= 22 && y <= 34) {
-              groundColor = '#262B34'; // Central ravine: rock bed
+              groundColor = '#4E565E'; // Central ravine: rock bed
             } else if (y < 2) {
-              groundColor = '#1D2A26'; // North vista foreground
+              groundColor = '#467347'; // North vista foreground
             }
             ctx.fillStyle = groundColor;
             ctx.fillRect(px, py, TILE, TILE);
 
             if ((x * 19 + y * 31) % 4 === 1) {
-              ctx.fillStyle = 'rgba(70, 110, 80, 0.18)';
+              ctx.fillStyle = 'rgba(110, 175, 90, 0.35)';
               ctx.fillRect(px + 4, py + 8, 3, 6);
               ctx.fillRect(px + 18, py + 14, 3, 5);
             }
@@ -186,12 +232,12 @@
       const ravineY = 22 * TILE;
       const ravineW = 3 * TILE;
       const ravineH = 13 * TILE;
-      ctx.fillStyle = '#222830';
+      ctx.fillStyle = '#363C44';
       ctx.fillRect(ravineX, ravineY, ravineW, ravineH);
 
-      ctx.fillStyle = '#23586C';
+      ctx.fillStyle = '#4C86A8'; // Brighter sun-lit blue water
       ctx.fillRect(ravineX + 16, ravineY, ravineW - 32, ravineH);
-      ctx.strokeStyle = 'rgba(180, 230, 245, 0.45)';
+      ctx.strokeStyle = 'rgba(235, 250, 255, 0.65)';
       ctx.lineWidth = 1.5;
       for (let ry = ravineY + 10; ry < ravineY + ravineH; ry += 24) {
         ctx.beginPath();
@@ -202,26 +248,26 @@
       for (let i = 0; i < 7; i++) {
         const bx = ravineX + 16 + (i % 2) * 36 + ((i * 17) % 18);
         const by = ravineY + 20 + i * 50;
-        ctx.fillStyle = '#3A404A';
+        ctx.fillStyle = '#4E5560';
         ctx.beginPath();
         ctx.arc(bx, by, 7, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#2D4E39';
+        ctx.fillStyle = '#3A6248';
         ctx.beginPath();
         ctx.arc(bx, by - 2, 4, 0, Math.PI);
         ctx.fill();
       }
 
-      // 4. Southwest Sanctuary: Alpine Tarn (Mountain Lake)
+      // 4. Southwest Sanctuary: Alpine Tarn (Mountain Lake — sun-lit blues)
       const lakeCx = 8 * TILE;
       const lakeCy = 30 * TILE;
       const lakeRx = 190;
       const lakeRy = 120;
       const lakeGrad = ctx.createRadialGradient(lakeCx, lakeCy, 15, lakeCx, lakeCy, lakeRx);
-      lakeGrad.addColorStop(0.0, '#0F2432');
-      lakeGrad.addColorStop(0.55, '#1B4456');
-      lakeGrad.addColorStop(0.85, '#2C6B7E');
-      lakeGrad.addColorStop(1.0, '#1E4A3E');
+      lakeGrad.addColorStop(0.0, '#2D5E7B');
+      lakeGrad.addColorStop(0.55, '#3D7699');
+      lakeGrad.addColorStop(0.85, '#4C86A8');
+      lakeGrad.addColorStop(1.0, '#5A96A6');
 
       ctx.save();
       ctx.beginPath();
@@ -238,17 +284,17 @@
       ctx.fillStyle = lakeGrad;
       ctx.fill();
 
-      ctx.strokeStyle = '#3F584C';
+      ctx.strokeStyle = '#467458';
       ctx.lineWidth = 3;
       ctx.stroke();
 
       const reflGrad = ctx.createLinearGradient(lakeCx - lakeRx, lakeCy - lakeRy, lakeCx + lakeRx, lakeCy + lakeRy);
-      reflGrad.addColorStop(0.2, 'rgba(215, 150, 120, 0.25)');
-      reflGrad.addColorStop(0.8, 'rgba(35, 55, 75, 0.30)');
+      reflGrad.addColorStop(0.2, 'rgba(255, 255, 230, 0.35)');
+      reflGrad.addColorStop(0.8, 'rgba(130, 195, 225, 0.30)');
       ctx.fillStyle = reflGrad;
       ctx.fill();
 
-      ctx.strokeStyle = 'rgba(180, 235, 245, 0.28)';
+      ctx.strokeStyle = 'rgba(235, 250, 255, 0.55)';
       ctx.lineWidth = 1.2;
       for (let dy = -lakeRy + 20; dy < lakeRy - 15; dy += 18) {
         const chordLen = Math.sqrt(Math.max(0, 1 - (dy / lakeRy) ** 2)) * lakeRx * 0.72;
@@ -266,17 +312,17 @@
         { x: lakeCx - 10, y: lakeCy + lakeRy * 0.85, r: 6 }
       ];
       shoreRocks.forEach(rk => {
-        ctx.fillStyle = '#3E434D';
+        ctx.fillStyle = '#4E5560';
         ctx.beginPath();
         ctx.arc(rk.x, rk.y, rk.r, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#616978';
+        ctx.fillStyle = '#737B8A';
         ctx.beginPath();
         ctx.arc(rk.x - 2, rk.y - 2, rk.r * 0.45, 0, Math.PI * 2);
         ctx.fill();
       });
 
-      ctx.fillStyle = '#265C3E';
+      ctx.fillStyle = '#3A8253';
       [
         { x: lakeCx - 40, y: lakeCy - 20, r: 5 },
         { x: lakeCx - 55, y: lakeCy - 12, r: 4 },
@@ -290,7 +336,7 @@
       ctx.restore();
 
       // Wildflowers across southwest meadow
-      const flowerColors = ['#FFE28A', '#F28B66', '#FFFFFF', '#ECC94B'];
+      const flowerColors = ['#FFE28A', '#FFA87D', '#FFFFFF', '#F6E05E'];
       for (let i = 0; i < 45; i++) {
         const fx = 20 + ((i * 37) % 500);
         const fy = 23 * TILE + ((i * 59) % (16 * TILE));
@@ -338,12 +384,26 @@
         { x: 43.3 * TILE, y: 9 * TILE, s: 0.85 },
         { x: 43.5 * TILE, y: 15 * TILE, s: 0.95 },
         { x: 43.4 * TILE, y: 24 * TILE, s: 1.0 },
-        { x: 43.3 * TILE, y: 30 * TILE, s: 0.9 }
+        { x: 43.3 * TILE, y: 30 * TILE, s: 0.9 },
+        // Extended outer margin trees
+        { x: -350, y: 120, s: 0.9 },
+        { x: -180, y: 250, s: 0.85 },
+        { x: -280, y: 600, s: 0.95 },
+        { x: -150, y: 900, s: 1.0 },
+        { x: -300, y: 1100, s: 1.05 },
+        { x: mapW + 120, y: 200, s: 0.9 },
+        { x: mapW + 280, y: 500, s: 0.95 },
+        { x: mapW + 160, y: 850, s: 1.0 },
+        { x: mapW + 320, y: 1150, s: 1.1 },
+        { x: 300, y: mapH + 180, s: 1.05 },
+        { x: 700, y: mapH + 250, s: 1.1 },
+        { x: 1100, y: mapH + 150, s: 1.0 }
       ];
       pinePositions.forEach(p => {
         this.drawPineTree(ctx, p.x, p.y, p.s);
       });
 
+      ctx.restore();
       this.vistaDirty = false;
     }
 
@@ -593,7 +653,8 @@
         this.bakeMountainVista(map);
       }
       if (this.vistaCanvas) {
-        ctx.drawImage(this.vistaCanvas, 0, 0);
+        const margin = this.vistaMargin || 0;
+        ctx.drawImage(this.vistaCanvas, -margin, -margin);
       }
       // Pass 1b: Lightweight Animated Vista Accents (water sparkles & drifting mist)
       this.drawAnimatedVistaAccents(ctx);
@@ -853,45 +914,34 @@
     // -------------------------------------------------------------------------
     drawStatusBoard(ctx, liveData, camera) {
       const TILE = 32;
-      const zoom = (camera && camera.zoom) ? camera.zoom : 1.0;
-      const isScreenSpace = Boolean(camera);
 
-      // World positions on north wall
-      const worldLx = 14.6 * TILE;
-      const worldLy = 8.6 * TILE;
-      const worldLw = 4.8 * TILE;
-      const worldLh = 3.2 * TILE;
+      // Pinned directly to the north wall in world space (scales naturally with camera zoom and dpr)
+      const lx = 14.6 * TILE;
+      const ly = 8.6 * TILE;
+      const lw = 4.8 * TILE;
+      const lh = 3.2 * TILE;
 
-      const worldRx = 24.1 * TILE;
-      const worldRy = 8.6 * TILE;
-      const worldRw = 4.8 * TILE;
-      const worldRh = 3.2 * TILE;
-
-      ctx.save();
-      if (isScreenSpace) {
-        ctx.setTransform(1, 0, 0, 1, 0, 0); // 1:1 screen pixels
-      }
-
-      const lx = isScreenSpace ? Math.round((worldLx - camera.x) * zoom) : worldLx;
-      const ly = isScreenSpace ? Math.round((worldLy - camera.y) * zoom) : worldLy;
-      const lw = worldLw;
-      const lh = worldLh;
-
-      const rx = isScreenSpace ? Math.round((worldRx - camera.x) * zoom) : worldRx;
-      const ry = isScreenSpace ? Math.round((worldRy - camera.y) * zoom) : worldRy;
-      const rw = worldRw;
-      const rh = worldRh;
+      const rx = 24.1 * TILE;
+      const ry = 8.6 * TILE;
+      const rw = 4.8 * TILE;
+      const rh = 3.2 * TILE;
 
       if (camera) {
-        const minX = Math.min(lx, rx);
-        const maxX = Math.max(lx + lw, rx + rw);
-        const minY = Math.min(ly, ry);
-        const maxY = Math.max(ly + lh, ry + rh);
-        if (maxX < 0 || minX > camera.width || maxY < 0 || minY > camera.height) {
-          ctx.restore();
+        const zoom = (camera.zoom && camera.zoom > 0) ? camera.zoom : 1.0;
+        const viewX0 = camera.x;
+        const viewY0 = camera.y;
+        const viewX1 = camera.x + camera.width / zoom;
+        const viewY1 = camera.y + camera.height / zoom;
+        const boardMinX = Math.min(lx, rx);
+        const boardMaxX = Math.max(lx + lw, rx + rw);
+        const boardMinY = Math.min(ly, ry);
+        const boardMaxY = Math.max(ly + lh, ry + rh);
+        if (boardMaxX < viewX0 || boardMinX > viewX1 || boardMaxY < viewY0 || boardMinY > viewY1) {
           return;
         }
       }
+
+      ctx.save();
 
       const isOnline = liveData && liveData.online !== false;
       const now = new Date();
@@ -2444,12 +2494,12 @@
           ctx.strokeStyle = '#2D3748';
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(0, -7, 10.5, Math.PI * 0.88, Math.PI * 2.12);
+          ctx.arc(0, -6.5, 10, Math.PI * 0.86, Math.PI * 1.88);
           ctx.stroke();
-          // Earcups hugging sides of the head at ear height
+          // Earcups hugging sides of the head below visor (y: -1..7) so visor/goggles are fully visible
           ctx.fillStyle = '#4FD1C5';
-          this.drawRoundedRect(ctx, -12, -11, 4, 8, 2, true, true);
-          this.drawRoundedRect(ctx, 8, -11, 4, 8, 2, true, true);
+          this.drawRoundedRect(ctx, -13, -1, 4, 8, 2, true, true);
+          this.drawRoundedRect(ctx, 8.5, 0, 4, 7.5, 2, true, true);
           break;
 
         case 'beret':
@@ -2483,21 +2533,27 @@
           break;
 
         case 'headset':
-          // Front desk headset (C6)
+          // Front desk headset (C6) — band resting on head top (y = -16), earpiece at ear height, boom mic to visor
           ctx.strokeStyle = '#2D3748';
           ctx.lineWidth = 2.5;
           ctx.beginPath();
-          ctx.arc(0, -15, 10, Math.PI * 0.8, Math.PI * 2);
+          ctx.arc(0, -6, 10, Math.PI * 0.86, Math.PI * 1.88);
           ctx.stroke();
-          // Earpiece & boom mic
+          // Earpiece at ear height (-13, -3, 4, 8)
           ctx.fillStyle = '#ECC94B';
-          this.drawRoundedRect(ctx, -11, -15, 3, 6, 1, true, true);
+          this.drawRoundedRect(ctx, -13, -3, 4, 8, 1.5, true, true);
+          // Boom mic curving from earpiece to below front of visor
           ctx.strokeStyle = '#2D3748';
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.moveTo(-10, -12);
-          ctx.lineTo(-4, -6);
+          ctx.moveTo(-11, 1);
+          ctx.quadraticCurveTo(-3, 4, 3, 3);
           ctx.stroke();
+          // Mic foam tip
+          ctx.fillStyle = '#2D3748';
+          ctx.beginPath();
+          ctx.arc(3.5, 3, 1.5, 0, Math.PI * 2);
+          ctx.fill();
           break;
       }
 

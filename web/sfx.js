@@ -33,8 +33,8 @@
 
       // Master bus
       masterGain = audioCtx.createGain();
-      masterGain.gain.value = isMuted ? 0 : 0.35;
-      masterGain.gain.setValueAtTime(isMuted ? 0 : 0.35, audioCtx.currentTime);
+      masterGain.gain.value = isMuted ? 0 : 0.9;
+      masterGain.gain.setValueAtTime(isMuted ? 0 : 0.9, audioCtx.currentTime);
       masterGain.connect(audioCtx.destination);
 
       // SFX Bus with gentle lowpass roll-off (warmth, no harsh transients)
@@ -51,8 +51,8 @@
 
       // Music Bus
       musicBusGain = audioCtx.createGain();
-      musicBusGain.gain.value = isMusicMuted ? 0 : 0.10;
-      musicBusGain.gain.setValueAtTime(isMusicMuted ? 0 : 0.10, audioCtx.currentTime);
+      musicBusGain.gain.value = isMusicMuted ? 0 : 0.40;
+      musicBusGain.gain.setValueAtTime(isMusicMuted ? 0 : 0.40, audioCtx.currentTime);
       musicBusGain.connect(masterGain);
 
       // Start procedural music engine
@@ -70,7 +70,7 @@
     isMuted = Boolean(muted);
     if (masterGain && audioCtx) {
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
-      const target = isMuted ? 0 : 0.35;
+      const target = isMuted ? 0 : 0.9;
       masterGain.gain.value = target;
       masterGain.gain.setValueAtTime(target, audioCtx.currentTime);
     }
@@ -89,7 +89,7 @@
     isMusicMuted = Boolean(muted);
     if (musicBusGain && audioCtx) {
       musicBusGain.gain.cancelScheduledValues(audioCtx.currentTime);
-      const target = isMusicMuted ? 0 : 0.10;
+      const target = isMusicMuted ? 0 : 0.40;
       musicBusGain.gain.value = target;
       musicBusGain.gain.setValueAtTime(target, audioCtx.currentTime);
     }

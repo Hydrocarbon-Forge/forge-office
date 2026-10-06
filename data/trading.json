@@ -1,118 +1,109 @@
 {
-  "updated": "2026-10-06T17:04:58.305829+00:00",
-  "updated_ts": 1791306298.305829,
+  "updated": "2026-10-06T21:14:58.163530+00:00",
+  "updated_ts": 1791321298.16353,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
-    "equity": 99.11,
+    "equity": 99.03,
     "start": 100.0,
-    "total_pnl": -0.89,
-    "total_pct": -0.89,
-    "day_pnl": -0.63,
-    "day_pct": -0.63,
-    "cash": 4.96,
+    "total_pnl": -0.97,
+    "total_pct": -0.97,
+    "day_pnl": -0.71,
+    "day_pct": -0.71,
+    "cash": 4.94,
     "cash_pct": 5.0,
-    "total_fees": 0.13,
+    "total_fees": 0.14,
     "tax_rate": 0.15,
     "taxable_gains": 0.0,
     "capital_gains_tax": 0.0,
-    "real_total": 99.11,
-    "taxed_total": 99.11,
+    "real_total": 99.03,
+    "taxed_total": 99.03,
     "holdings": [
       {
-        "sym": "AMD",
+        "sym": "META",
         "qty": 0.03,
-        "px": 655.48,
+        "px": 743.79,
         "val": 19.93,
         "w": 20.1
       },
       {
-        "sym": "META",
+        "sym": "AMD",
         "qty": 0.03,
-        "px": 742.13,
-        "val": 19.89,
+        "px": 654.98,
+        "val": 19.91,
         "w": 20.1
       },
       {
         "sym": "CRWD",
         "qty": 0.07,
-        "px": 279.23,
+        "px": 279.36,
         "val": 19.83,
         "w": 20.0
       },
       {
         "sym": "MSTR",
         "qty": 0.12,
-        "px": 164.4,
-        "val": 19.65,
-        "w": 19.8
+        "px": 163.24,
+        "val": 19.51,
+        "w": 19.7
       },
       {
         "sym": "PLTR",
         "qty": 0.08,
-        "px": 192.29,
-        "val": 14.86,
+        "px": 192.73,
+        "val": 14.9,
         "w": 15.0
       }
     ],
-    "trades_now": [
-      {
-        "sym": "PLTR",
-        "act": "sell",
-        "qty": 0.03,
-        "px": 192.1,
-        "reason": "forced trim (weakest)",
-        "fee": 0.0
-      }
-    ],
-    "n_trades": 12,
+    "trades_now": [],
+    "n_trades": 14,
     "quotes_ok": 20,
     "quotes_total": 20
   },
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 98.68,
+    "equity": 98.41,
     "start": 100.0,
-    "total_pnl": -1.32,
-    "total_pct": -1.32,
-    "day_pnl": -1.12,
-    "day_pct": -1.12,
-    "cash": 6.15,
-    "cash_pct": 6.2,
-    "total_fees": 0.16,
+    "total_pnl": -1.59,
+    "total_pct": -1.59,
+    "day_pnl": -1.39,
+    "day_pct": -1.39,
+    "cash": 6.19,
+    "cash_pct": 6.3,
+    "total_fees": 0.18,
     "tax_rate": 0.15,
     "taxable_gains": 0.0,
     "capital_gains_tax": 0.0,
-    "real_total": 98.68,
-    "taxed_total": 98.68,
+    "real_total": 98.41,
+    "taxed_total": 98.41,
     "holdings": [
       {
-        "sym": "WIF",
-        "qty": 98.9297,
-        "px": 0.25,
-        "val": 24.79,
-        "w": 25.1
+        "sym": "LINK",
+        "qty": 1.7737,
+        "px": 13.96,
+        "val": 24.76,
+        "w": 25.2
       },
       {
         "sym": "AVAX",
         "qty": 2.1579,
-        "px": 11.44,
-        "val": 24.68,
-        "w": 25.0
+        "px": 11.43,
+        "val": 24.66,
+        "w": 25.1
       },
       {
-        "sym": "LINK",
-        "qty": 1.7737,
-        "px": 13.87,
-        "val": 24.59,
-        "w": 24.9
+        "sym": "WIF",
+        "qty": 98.9297,
+        "px": 0.25,
+        "val": 24.37,
+        "w": 24.8
       },
       {
         "sym": "SOL",
-        "qty": 0.1534,
-        "px": 120.37,
-        "val": 18.46,
+        "qty": 0.1525,
+        "px": 120.88,
+        "val": 18.43,
         "w": 18.7
       }
     ],
@@ -120,13 +111,13 @@
       {
         "sym": "SOL",
         "act": "sell",
-        "qty": 0.0512,
-        "px": 120.25,
+        "qty": 0.0508,
+        "px": 120.76,
         "reason": "forced trim (weakest)",
         "fee": 0.01
       }
     ],
-    "n_trades": 13,
+    "n_trades": 17,
     "quotes_ok": 7,
     "quotes_total": 9
   },
