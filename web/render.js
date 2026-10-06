@@ -618,8 +618,8 @@
       ctx.fillStyle = 'rgba(56, 178, 172, 0.25)';
       ctx.fillRect(px + 8, py + 54, pw - 16, 1);
 
-      // 4. Holdings List (top 3)
-      const holdings = Array.isArray(data.holdings) ? data.holdings.slice(0, 3) : [];
+      // 4. Holdings List (top 2 to leave room for TAXED total)
+      const holdings = Array.isArray(data.holdings) ? data.holdings.slice(0, 2) : [];
       holdings.forEach((h, idx) => {
         if (!h) return;
         const hy = py + 64 + idx * 10;
@@ -653,6 +653,27 @@
         ctx.fillStyle = title === 'CRYPTO' ? '#63B3ED' : '#4FD1C5';
         ctx.fillRect(barX, hy - 5, barW * barFill, 4);
       });
+
+      // 5. Distinct TAXED Total line (real total is the big equity above)
+      const taxedTotal = (typeof data.taxed_total === 'number' && !isNaN(data.taxed_total)) ? data.taxed_total : null;
+      const capTax = (typeof data.capital_gains_tax === 'number' && !isNaN(data.capital_gains_tax)) ? data.capital_gains_tax : null;
+
+      ctx.font = 'bold 7px monospace';
+      ctx.fillStyle = '#ECC94B';
+      if (taxedTotal !== null) {
+        const taxedStr = '$' + Math.round(taxedTotal).toLocaleString('en-US');
+        let taxSuffix = '';
+        if (capTax !== null) {
+          if (capTax > 0) {
+            taxSuffix = ` (-$${Math.round(capTax).toLocaleString('en-US')} tax)`;
+          } else {
+            taxSuffix = ' ($0 tax)';
+          }
+        }
+        ctx.fillText(`TAXED ${taxedStr}${taxSuffix}`, px + 8, py + 87);
+      } else {
+        ctx.fillText('TAXED --', px + 8, py + 87);
+      }
 
       ctx.restore();
     }
