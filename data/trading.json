@@ -1,17 +1,18 @@
 {
-  "updated": "2026-10-06T12:52:33.297569+00:00",
-  "updated_ts": 1791291153.297569,
+  "updated": "2026-10-06T13:07:22.849265+00:00",
+  "updated_ts": 1791292042.849265,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
-    "equity": 99999.98,
+    "equity": 99980.02,
     "start": 100000.0,
-    "total_pnl": -0.02,
-    "total_pct": -0.0,
-    "day_pnl": -0.01,
-    "day_pct": -0.0,
+    "total_pnl": -19.98,
+    "total_pct": -0.02,
+    "day_pnl": -19.97,
+    "day_pct": -0.02,
     "cash": 0.0,
     "cash_pct": 0.0,
+    "total_fees": 9.98,
     "holdings": [
       {
         "sym": "AMD",
@@ -28,13 +29,6 @@
         "w": 20.0
       },
       {
-        "sym": "INTC",
-        "qty": 172.13,
-        "px": 116.19,
-        "val": 19999.99,
-        "w": 20.0
-      },
-      {
         "sym": "META",
         "qty": 26.96,
         "px": 741.9,
@@ -47,56 +41,82 @@
         "px": 272.67,
         "val": 19999.99,
         "w": 20.0
+      },
+      {
+        "sym": "INTC",
+        "qty": 171.96,
+        "px": 116.19,
+        "val": 19980.03,
+        "w": 20.0
       }
     ],
-    "trades_now": [],
-    "n_trades": 11,
+    "trades_now": [
+      {
+        "sym": "INTC",
+        "act": "buy",
+        "qty": 42.86,
+        "px": 116.31,
+        "reason": "conviction entry/top-up",
+        "fee": 4.99
+      }
+    ],
+    "n_trades": 13,
     "quotes_ok": 20,
     "quotes_total": 20
   },
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 101586.19,
+    "equity": 101531.54,
     "start": 100000.0,
-    "total_pnl": 1586.19,
-    "total_pct": 1.59,
-    "day_pnl": 1586.19,
-    "day_pct": 1.59,
+    "total_pnl": 1531.54,
+    "total_pct": 1.53,
+    "day_pnl": 1531.54,
+    "day_pct": 1.53,
     "cash": 0.0,
     "cash_pct": 0.0,
+    "total_fees": 12.47,
     "holdings": [
       {
         "sym": "AVAX",
         "qty": 2232.5415,
-        "px": 11.51,
-        "val": 25698.79,
-        "w": 25.3
+        "px": 11.47,
+        "val": 25605.02,
+        "w": 25.2
       },
       {
         "sym": "WIF",
         "qty": 101584.7217,
         "px": 0.25,
-        "val": 25528.24,
-        "w": 25.1
+        "val": 25548.56,
+        "w": 25.2
       },
       {
         "sym": "LINK",
         "qty": 1812.645,
-        "px": 13.99,
-        "val": 25357.09,
+        "px": 14.02,
+        "val": 25413.28,
         "w": 25.0
       },
       {
         "sym": "SOL",
-        "qty": 207.6412,
-        "px": 120.41,
-        "val": 25002.08,
+        "qty": 207.434,
+        "px": 120.35,
+        "val": 24964.68,
         "w": 24.6
       }
     ],
-    "trades_now": [],
-    "n_trades": 4,
+    "trades_now": [
+      {
+        "sym": "SOL",
+        "act": "buy",
+        "qty": 51.7031,
+        "px": 120.47,
+        "reason": "conviction entry/top-up",
+        "fee": 6.23
+      }
+    ],
+    "n_trades": 6,
     "quotes_ok": 7,
     "quotes_total": 9
   },
