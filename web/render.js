@@ -61,10 +61,13 @@
     renderMap(map, camera, liveData) {
       const ctx = this.ctx;
       const TILE = map.tile;
+      const zoom = (camera && camera.zoom) ? camera.zoom : 1.0;
+      const visibleW = camera.width / zoom;
+      const visibleH = camera.height / zoom;
       const x0 = Math.max(0, Math.floor(camera.x / TILE));
       const y0 = Math.max(0, Math.floor(camera.y / TILE));
-      const x1 = Math.min(map.width - 1, Math.ceil((camera.x + camera.width) / TILE));
-      const y1 = Math.min(map.height - 1, Math.ceil((camera.y + camera.height) / TILE));
+      const x1 = Math.min(map.width - 1, Math.ceil((camera.x + visibleW) / TILE));
+      const y1 = Math.min(map.height - 1, Math.ceil((camera.y + visibleH) / TILE));
 
       // Draw Floor Tiles
       for (let y = y0; y <= y1; y++) {
@@ -173,7 +176,7 @@
       }
 
       // Draw Main Status Board on North Wall
-      this.drawStatusBoard(ctx, liveData);
+      this.drawStatusBoard(ctx, liveData, camera);
 
       // Draw Trading Floor (Dual CRT screens, floating tickers, desk & trader)
       this.drawTradingFloor(ctx, map, liveData);
@@ -199,32 +202,76 @@
       ctx.save();
       ctx.translate(door.x, door.y);
 
-      // Door frame
-      ctx.strokeStyle = '#3E2723';
-      ctx.lineWidth = 3;
+      // 1. Subtle threshold strip on floor across the doorway
+      ctx.fillStyle = '#4A3728';
+      if (door.orientation === 'v') {
+        ctx.fillRect(-TILE / 2 + 10, -TILE / 2, TILE - 20, TILE);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillRect(-TILE / 2 + 12, -TILE / 2, 2, TILE);
+      } else {
+        ctx.fillRect(-TILE / 2, -TILE / 2 + 10, TILE, TILE - 20);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillRect(-TILE / 2, -TILE / 2 + 12, TILE, 2);
+      }
+
+      // 2. Door Frame Jambs & Lintel (wooden/wall trim casing)
+      ctx.fillStyle = '#3E2723';
+      ctx.strokeStyle = '#271916';
+      ctx.lineWidth = 1.5;
 
       if (door.orientation === 'v') {
-        // Vertical doorway
+        // Vertical door: top & bottom wall jamb posts
+        ctx.fillRect(-TILE / 2 + 2, -TILE / 2 - 2, TILE - 4, 4);
+        ctx.strokeRect(-TILE / 2 + 2, -TILE / 2 - 2, TILE - 4, 4);
+        ctx.fillRect(-TILE / 2 + 2, TILE / 2 - 2, TILE - 4, 4);
+        ctx.strokeRect(-TILE / 2 + 2, TILE / 2 - 2, TILE - 4, 4);
+
+        // Vertical door leaf swing
         const swing = door.open * 24;
         ctx.fillStyle = '#8D6E63';
-        ctx.fillRect(-4 + swing, -TILE / 2 + 2, 8, TILE - 4);
-        ctx.strokeRect(-4 + swing, -TILE / 2 + 2, 8, TILE - 4);
+        ctx.strokeStyle = '#3E2723';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-4 + swing, -TILE / 2 + 4, 8, TILE - 8);
+        ctx.strokeRect(-4 + swing, -TILE / 2 + 4, 8, TILE - 8);
+        // Panel recessed groove
+        ctx.strokeStyle = '#6D4C41';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-2 + swing, -TILE / 2 + 7, 4, TILE - 14);
         // Handle
         ctx.fillStyle = '#FFD54F';
         ctx.beginPath();
         ctx.arc(swing, 0, 2.5, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#FFA000';
+        ctx.stroke();
       } else {
-        // Horizontal doorway
+        // Horizontal door: left & right wall jamb posts + top lintel
+        ctx.fillRect(-TILE / 2 - 2, -TILE / 2 + 2, 4, TILE - 4);
+        ctx.strokeRect(-TILE / 2 - 2, -TILE / 2 + 2, 4, TILE - 4);
+        ctx.fillRect(TILE / 2 - 2, -TILE / 2 + 2, 4, TILE - 4);
+        ctx.strokeRect(TILE / 2 - 2, -TILE / 2 + 2, 4, TILE - 4);
+        // Top lintel beam
+        ctx.fillRect(-TILE / 2 - 3, -TILE / 2 - 2, TILE + 6, 5);
+        ctx.strokeRect(-TILE / 2 - 3, -TILE / 2 - 2, TILE + 6, 5);
+
+        // Horizontal door leaf swing
         const swing = door.open * 24;
         ctx.fillStyle = '#8D6E63';
-        ctx.fillRect(-TILE / 2 + 2, -4 - swing, TILE - 4, 8);
-        ctx.strokeRect(-TILE / 2 + 2, -4 - swing, TILE - 4, 8);
+        ctx.strokeStyle = '#3E2723';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-TILE / 2 + 4, -4 - swing, TILE - 8, 8);
+        ctx.strokeRect(-TILE / 2 + 4, -4 - swing, TILE - 8, 8);
+        // Panel recessed groove
+        ctx.strokeStyle = '#6D4C41';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-TILE / 2 + 7, -2 - swing, TILE - 14, 4);
         // Handle
         ctx.fillStyle = '#FFD54F';
         ctx.beginPath();
         ctx.arc(0, -swing, 2.5, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#FFA000';
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -269,9 +316,47 @@
     // -------------------------------------------------------------------------
     // Main Status Board (Dual CRT Displays flanking Claude Door)
     // -------------------------------------------------------------------------
-    drawStatusBoard(ctx, liveData) {
+    drawStatusBoard(ctx, liveData, camera) {
       const TILE = 32;
+      const zoom = (camera && camera.zoom) ? camera.zoom : 1.0;
+      const isScreenSpace = Boolean(camera);
+
+      // World positions on north wall
+      const worldLx = 14.6 * TILE;
+      const worldLy = 8.6 * TILE;
+      const worldLw = 4.8 * TILE;
+      const worldLh = 3.2 * TILE;
+
+      const worldRx = 24.1 * TILE;
+      const worldRy = 8.6 * TILE;
+      const worldRw = 4.8 * TILE;
+      const worldRh = 3.2 * TILE;
+
       ctx.save();
+      if (isScreenSpace) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // 1:1 screen pixels
+      }
+
+      const lx = isScreenSpace ? Math.round((worldLx - camera.x) * zoom) : worldLx;
+      const ly = isScreenSpace ? Math.round((worldLy - camera.y) * zoom) : worldLy;
+      const lw = worldLw;
+      const lh = worldLh;
+
+      const rx = isScreenSpace ? Math.round((worldRx - camera.x) * zoom) : worldRx;
+      const ry = isScreenSpace ? Math.round((worldRy - camera.y) * zoom) : worldRy;
+      const rw = worldRw;
+      const rh = worldRh;
+
+      if (camera) {
+        const minX = Math.min(lx, rx);
+        const maxX = Math.max(lx + lw, rx + rw);
+        const minY = Math.min(ly, ry);
+        const maxY = Math.max(ly + lh, ry + rh);
+        if (maxX < 0 || minX > camera.width || maxY < 0 || minY > camera.height) {
+          ctx.restore();
+          return;
+        }
+      }
 
       const isOnline = liveData && liveData.online !== false;
       const now = new Date();
@@ -286,11 +371,7 @@
         this.renderCRTPanel(ctx, px, py, pw, ph, title, isOnline);
       };
 
-      // 1. Left Panel (Overview): x: 14.5 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 3.2 * TILE
-      const lx = 14.5 * TILE;
-      const ly = 8.6 * TILE;
-      const lw = 5.8 * TILE;
-      const lh = 3.2 * TILE;
+      // 1. Left Panel (Overview): Centered over board tiles x:15..19
       renderPanel(lx, ly, lw, lh, 'FORGE CLUSTER');
 
       // Online pill & clock
@@ -399,11 +480,7 @@
         ctx.fillText(statusText, pxPos + 8 + nameWidth, pyPos + 2.5);
       });
 
-      // 2. Right Panel (Harness Metrics): x: 21.7 * TILE, y: 8.6 * TILE, w: 5.8 * TILE, h: 3.2 * TILE
-      const rx = 21.7 * TILE;
-      const ry = 8.6 * TILE;
-      const rw = 5.8 * TILE;
-      const rh = 3.2 * TILE;
+      // 2. Right Panel (Harness Metrics): Centered over board tiles x:24..28 (center 26.5 * TILE)
       renderPanel(rx, ry, rw, rh, 'HARNESS METRICS');
 
       // Mini stats in right panel: TOOL CALLS & MESSAGES
@@ -776,8 +853,8 @@
       this.drawWallPoster(ctx, 9 * TILE + 6, 2 * TILE, 'pixel_art');
       this.drawWallPoster(ctx, 25 * TILE + 6, 2 * TILE, 'neural');
       this.drawWallPoster(ctx, 34 * TILE + 6, 2 * TILE, 'galaxy');
-      this.drawFramedArt(ctx, 14 * TILE + 4, 9 * TILE + 4, 'mountain');
-      this.drawFramedArt(ctx, 28 * TILE + 4, 9 * TILE + 4, 'cyber');
+      this.drawFramedArt(ctx, 14 * TILE + 4, 8 * TILE + 4, 'mountain');
+      this.drawFramedArt(ctx, 29 * TILE + 4, 8 * TILE + 4, 'cyber');
 
       // 3. Lobby Furniture
       this.drawDesk(ctx, 19 * TILE, 12 * TILE, 5 * TILE, 1.2 * TILE, '#D7A765');
@@ -826,8 +903,11 @@
       this.drawOfficeSign(ctx, 32 * TILE + 16, 21.5 * TILE, 'TRADING FLOOR', '#38B2AC');
 
       // 9. Potted Plants
-      this.drawPlant(ctx, 14 * TILE, 10 * TILE);
-      this.drawPlant(ctx, 29 * TILE, 10 * TILE);
+      // Flanking the centered status boards on row 10 (one each side of each centered strip)
+      this.drawPlant(ctx, 14 * TILE, 10 * TILE); // left board left flank
+      this.drawPlant(ctx, 20 * TILE, 10 * TILE); // left board right flank
+      this.drawPlant(ctx, 23 * TILE, 10 * TILE); // right board left flank
+      this.drawPlant(ctx, 29 * TILE, 10 * TILE); // right board right flank
       this.drawPlant(ctx, 14 * TILE, 21 * TILE);
       this.drawPlant(ctx, 29 * TILE, 21 * TILE);
       this.drawPlant(ctx, 11 * TILE, 2.5 * TILE); // OpenCode plant
@@ -1423,13 +1503,12 @@
     drawArchiveShelves(ctx, map, camera) {
       const TILE = 32;
 
-      // Group project boxes by shelf
-      for (const box of map.projectBoxes) {
-        const shelf = box.shelf;
+      // 1. Draw all shelves & empty-shelf marks
+      for (const shelf of map.shelves) {
         const sx = shelf.tileX * TILE;
         const sy = shelf.tileY * TILE;
 
-        // Draw Wooden/Metal Shelving
+        // Wooden/Metal Shelving frame
         ctx.fillStyle = '#4A5568';
         ctx.fillRect(sx, sy, TILE, TILE * 2);
         ctx.strokeStyle = '#2D3748';
@@ -1440,10 +1519,37 @@
         ctx.fillStyle = '#718096';
         ctx.fillRect(sx, sy + TILE - 2, TILE, 4);
 
-        // Draw the Project Box on the shelf
+        // Subtle empty-shelf mark if space was previously occupied
+        if (shelf.hasEmptyMark) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+          ctx.fillRect(sx + 4, sy + 6, TILE - 8, 20);
+          ctx.strokeStyle = 'rgba(160, 174, 192, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.strokeRect(sx + 4, sy + 6, TILE - 8, 20);
+          // Faint empty dust silhouette
+          ctx.fillStyle = 'rgba(210, 180, 140, 0.12)';
+          ctx.fillRect(sx + 6, sy + 8, TILE - 12, 16);
+          ctx.restore();
+        }
+      }
+
+      // 2. Draw Project Boxes on shelves
+      for (const box of map.projectBoxes) {
+        const shelf = box.shelf;
+        if (!shelf) continue;
+        const sx = shelf.tileX * TILE;
+        const sy = shelf.tileY * TILE;
+        const opacity = box.opacity !== undefined ? box.opacity : 1.0;
+        if (opacity <= 0.001) continue;
+
+        ctx.save();
+        ctx.globalAlpha = opacity;
+
         const proj = box.project;
         const isDeployed = proj.deployed === true;
-        const boxColor = isDeployed ? '#38A169' : '#DD6B20'; // Green for deployed, warm amber for development
+        const boxColor = isDeployed ? '#38A169' : '#DD6B20';
 
         const bx = sx + 4;
         const by = sy + 6;
@@ -1463,20 +1569,36 @@
 
         // Colored status tape
         ctx.fillStyle = boxColor;
-        ctx.fillRect(bx + 4, by, 6, bh);
+        ctx.fillRect(bx + 4, by, 5, bh);
 
         // Project label tag
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(bx + 11, by + 4, 10, 11);
+        ctx.fillRect(bx + 10, by + 3, 11, 14);
         ctx.strokeStyle = '#718096';
         ctx.lineWidth = 0.5;
-        ctx.strokeRect(bx + 11, by + 4, 10, 11);
+        ctx.strokeRect(bx + 10, by + 3, 11, 14);
 
-        // Short project name on tag
+        // Deployed badge dot (green dot vs gray dot)
+        ctx.fillStyle = isDeployed ? '#38A169' : '#A0AEC0';
+        ctx.beginPath();
+        ctx.arc(bx + 13, by + 6, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Project name initials on tag
         ctx.fillStyle = '#1A202C';
-        ctx.font = 'bold 6px sans-serif';
+        ctx.font = 'bold 5.5px sans-serif';
         const initial = (proj.name || 'P').substring(0, 2);
-        ctx.fillText(initial, bx + 12, by + 12);
+        ctx.fillText(initial, bx + 11, by + 13);
+
+        // Updated date small text on bottom edge of box
+        if (proj.updated) {
+          ctx.fillStyle = '#5A4A3A';
+          ctx.font = '5px monospace';
+          const shortDate = proj.updated.substring(5); // e.g. "10-05"
+          ctx.fillText(shortDate, bx + 3, by + bh - 2);
+        }
+
+        ctx.restore();
       }
     }
 
@@ -1506,8 +1628,14 @@
       ctx.ellipse(0, 14 * scale, 12 * scale, 6 * scale, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Bobbing during walk cycle
-      const bob = options.isMoving ? (frame === 1 ? -2 * scale : 0) : 0;
+      // Direction change squash (e.g. 1.15x / 0.88x on turn)
+      const squashX = options.squashX || 1.0;
+      const squashY = options.squashY || 1.0;
+      ctx.scale(squashX, squashY);
+
+      // Sinusoidal body bob (amplitude 1.5px, half the stride frequency)
+      const walkPhase = (frame % 4) / 4;
+      const bob = options.isMoving ? Math.sin(walkPhase * Math.PI * 2) * 1.5 * scale : 0;
       ctx.translate(0, bob);
 
       // Facing horizontal flip
@@ -1522,21 +1650,46 @@
       ctx.lineWidth = 2.5;
       this.drawRoundedRect(ctx, -14, -6, 7, 18, 3, true, true);
 
-      // 2. Tiny Feet (2-frame cycle)
+      // 2. Legs / Feet (4-frame cycle with alternating leg spread)
       ctx.fillStyle = pal.dark;
       if (!isSitting) {
-        if (frame === 0) {
-          // Left foot forward, right foot back
+        if (!options.isMoving) {
+          // Standing neutral
           this.drawRoundedRect(ctx, -7, 8, 6, 8, 3, true, true);
-          this.drawRoundedRect(ctx, 2, 9, 6, 7, 3, true, true);
-        } else {
-          // Right foot forward, left foot back
-          this.drawRoundedRect(ctx, -7, 9, 6, 7, 3, true, true);
           this.drawRoundedRect(ctx, 2, 8, 6, 8, 3, true, true);
+        } else {
+          const f = frame % 4;
+          if (f === 0) {
+            // Frame 0: Left leg forward (-9), right leg back (4)
+            this.drawRoundedRect(ctx, -9, 7, 6, 8, 3, true, true);
+            this.drawRoundedRect(ctx, 4, 9, 6, 7, 3, true, true);
+          } else if (f === 1) {
+            // Frame 1: Passing position (legs aligned, body lifted)
+            this.drawRoundedRect(ctx, -7, 8, 6, 8, 3, true, true);
+            this.drawRoundedRect(ctx, 2, 8, 6, 8, 3, true, true);
+          } else if (f === 2) {
+            // Frame 2: Right leg forward (4), left leg back (-9)
+            this.drawRoundedRect(ctx, -9, 9, 6, 7, 3, true, true);
+            this.drawRoundedRect(ctx, 4, 7, 6, 8, 3, true, true);
+          } else {
+            // Frame 3: Passing position
+            this.drawRoundedRect(ctx, -7, 8, 6, 8, 3, true, true);
+            this.drawRoundedRect(ctx, 2, 8, 6, 8, 3, true, true);
+          }
         }
       } else {
         // Tucked feet when sitting
         this.drawRoundedRect(ctx, -5, 8, 10, 5, 2, true, true);
+      }
+
+      // Arm swing opposite the legs (drawn behind body)
+      if (!isSitting && options.isMoving) {
+        const f = frame % 4;
+        const armOffset = f === 0 ? -2.5 : (f === 2 ? 2.5 : 0);
+        ctx.fillStyle = pal.fill;
+        ctx.strokeStyle = '#22252A';
+        ctx.lineWidth = 2;
+        this.drawRoundedRect(ctx, -3 + armOffset, -2, 5, 8, 2.5, true, true);
       }
 
       // 3. Main Capsule / Blob Body
@@ -1746,16 +1899,16 @@
           break;
 
         case 'headphones':
-          // Over-ear headphones (OpenCode)
+          // Over-ear headphones (OpenCode) - snug headband resting right on head top (y = -16)
           ctx.strokeStyle = '#2D3748';
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(0, -14, 11, Math.PI * 0.9, Math.PI * 2.1);
+          ctx.arc(0, -7, 10.5, Math.PI * 0.88, Math.PI * 2.12);
           ctx.stroke();
-          // Earcups
+          // Earcups hugging sides of the head at ear height
           ctx.fillStyle = '#4FD1C5';
-          this.drawRoundedRect(ctx, -12, -15, 4, 8, 2, true, true);
-          this.drawRoundedRect(ctx, 8, -15, 4, 8, 2, true, true);
+          this.drawRoundedRect(ctx, -12, -11, 4, 8, 2, true, true);
+          this.drawRoundedRect(ctx, 8, -11, 4, 8, 2, true, true);
           break;
 
         case 'beret':

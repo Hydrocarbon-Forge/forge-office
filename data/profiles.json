@@ -7,6 +7,16 @@
     "visor": "classic",
     "face": "classic",
     "trail": "sparkle",
-    "lastSeen": 1791298350005
+    "lastSeen": 1791301449527
+  },
+  "gavin": {
+    "profile": "gavin",
+    "name": "ListenerB",
+    "color": "tangerine",
+    "hat": "beanie",
+    "visor": "classic",
+    "face": "classic",
+    "trail": "none",
+    "lastSeen": 1791301359875
   }
 }

@@ -51,6 +51,57 @@
       "Hold Shift while walking if you need to sprint across the office.",
       "Quiet hours start when the keyboards stop clacking... which is never!",
       "Keep an eye on the big wall screen for live session counts."
+  },
+  "c6_scenarios": {
+    "service_red": [
+      "Alert on the cluster: {service} is reporting red! Someone should check its logs.",
+      "Watch out — telemetry indicates {service} might be offline or throwing errors.",
+      "Warning lights are blinking for {service} on the status board. Keep an eye on it!"
+    ],
+    "just_arrived": [
+      "Welcome to Hydrocarbon Forge! You've been here {duration} — glad to have you in the office.",
+      "Good to see you! Fresh coffee is brewing in the break room whenever you need a recharge.",
+      "Clocked in and ready! You've been in the workspace for {duration}. Let's get things moving."
+    ],
+    "new_project_box": [
+      "A new project box just landed in the Archives: '{project}'! Go check out the shelves down the hall.",
+      "The Archives shelf grew again! '{project}' was just filed away with fresh commits.",
+      "Fresh delivery from the pipeline: '{project}' is now archived and cataloged on the shelf."
+    ],
+    "antigravity_with_subagents": [
+      "Antigravity is heads-down orchestrating {subagent_count} at its terminal right now.",
+      "Telemetry is active in the Antigravity lab — {subagent_count} are helping crunch the workload.",
+      "Antigravity is deep in flow, dispatching instructions across {subagent_count}."
+    ],
+    "opencode_working": [
+      "OpenCode has its headphones on and is heads-down refactoring pipelines right now.",
+      "Keyboards are clattering over in OpenCode's studio — commits are rolling in fast.",
+      "OpenCode is completely locked in today. Code scanlines are flying across its monitors."
+    ],
+    "claude_working": [
+      "Claude-Code is deep in thought at its desk, sipping coffee and reviewing code traces.",
+      "The beret is on! Claude-Code is systematically executing tasks without breaking a sweat.",
+      "Claude-Code is tackling complex architectural changes today. Pure analytical focus."
+    ],
+    "multiple_working": [
+      "The entire cluster is humming! Multiple harnesses are actively shipping work simultaneously.",
+      "Busy day in the office! Keyboards are clicking across every single harness desk.",
+      "Throughput is high on the floor right now. All hands on deck across the studios."
+    ],
+    "everyone_idle": [
+      "Quiet day on the cluster — all harness agents are currently resting or sipping coffee.",
+      "It's peaceful in the office right now. A calm afternoon to plan out the next sprint.",
+      "Not a single compile error in sight! Everything is tranquil across the floor."
+    ],
+    "trading_active": [
+      "The trading floor CRT screens are flickering with live market data down south.",
+      "Green candles on the trading desk monitors! The algorithmic engine is humming along.",
+      "Our trader is keeping close watch over volatility tickers down on the trading floor."
+    ],
+    "presence_active": [
+      "Nathan and Gavin are both tracked on the board — great to see teamwork in the forge.",
+      "Live Discord telemetry is synchronized with the big screens on our north wall.",
+      "Check the main status board behind me anytime for live token counts and presence."
     ]
   },
   "agentSpeech": [

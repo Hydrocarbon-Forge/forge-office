@@ -1,6 +1,7 @@
 // test/browser-test.js — In-browser boot check using headless Chromium and CDP
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { startServer, server } = require('../server.js');
 
 const PORT = parseInt(process.env.PORT, 10) || 8999;
 const TARGET_URL = `http://127.0.0.1:${PORT}`;
@@ -26,6 +27,20 @@ async function waitHttp(url, timeoutMs = 8000) {
 async function runBrowserTest() {
   console.log(`--- Starting Headless Chromium Boot Check against ${TARGET_URL} ---`);
 
+  let weStartedServer = false;
+  if (!server.listening) {
+    try {
+      await startServer(PORT, '127.0.0.1');
+      weStartedServer = true;
+      console.log(`Test server started on ${TARGET_URL}`);
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') {
+        console.error('FAIL: Could not start server:', err);
+        process.exit(1);
+      }
+    }
+  }
+
   const chromeProc = spawn('chromium', [
     '--headless=new',
     '--no-sandbox',
@@ -37,6 +52,9 @@ async function runBrowserTest() {
 
   const cleanup = () => {
     try { chromeProc.kill(); } catch {}
+    if (weStartedServer && server.listening) {
+      try { server.close(); } catch {}
+    }
   };
 
   process.on('exit', cleanup);
@@ -219,7 +237,97 @@ async function runBrowserTest() {
     throw new Error('Minimap click did not create pathfinding path');
   }
 
-  // 8. Assert zero critical console errors
+  // 8. Test Zoom Controls (Wheel & +/- Keys)
+  console.log('Step G: Testing zoom controls (+/- keys and wheel)...');
+  const initialZoom = await evalJs(`(() => {
+    const g = window.forgeOfficeGame || window.game;
+    return g?.camera?.zoom;
+  })()`);
+  console.log(`Initial camera zoom: ${initialZoom}`);
+  if (Math.abs(initialZoom - 1.25) > 0.05) {
+    throw new Error(`Expected initial zoom ~1.25, got ${initialZoom}`);
+  }
+
+  // Test zoom in with '+' key
+  await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '+', code: 'Equal' }));`);
+  const zoomIn = await evalJs(`(() => (window.forgeOfficeGame || window.game)?.camera?.targetZoom)()`);
+  console.log(`Target zoom after '+' key: ${zoomIn}`);
+  if (zoomIn <= initialZoom) {
+    throw new Error(`Zoom did not increase after '+' key: ${zoomIn}`);
+  }
+
+  // Test zoom out with '-' key
+  await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '-', code: 'Minus' }));`);
+  await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '-', code: 'Minus' }));`);
+  const zoomOut = await evalJs(`(() => (window.forgeOfficeGame || window.game)?.camera?.targetZoom)()`);
+  console.log(`Target zoom after '-' key: ${zoomOut}`);
+  if (zoomOut >= zoomIn) {
+    throw new Error(`Zoom did not decrease after '-' key: ${zoomOut}`);
+  }
+
+  // Reset zoom to 1.25
+  await evalJs(`(() => {
+    const g = window.forgeOfficeGame || window.game;
+    g.camera.zoom = 1.25;
+    g.camera.targetZoom = 1.25;
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
+
+  // 9. Test Lighting Modes (Office Lights vs Fullbright) & Capture Study Screenshots
+  console.log('Step H: Testing lighting modes and capturing screenshots for lighting study...');
+  const defaultLightMode = await evalJs(`(() => (window.forgeOfficeGame || window.game)?.lightsMode)()`);
+  console.log(`Default lights mode: ${defaultLightMode}`);
+  if (defaultLightMode !== 'office') {
+    throw new Error(`Default lights mode should be 'office', got ${defaultLightMode}`);
+  }
+
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const screenshotDir = path.join(__dirname, 'screenshots');
+  if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir, { recursive: true });
+  }
+
+  // Capture Screenshot in Office Mode
+  await new Promise((r) => setTimeout(r, 600));
+  const shotOffice = await send('Page.captureScreenshot', { format: 'png' });
+  const officeImgPath = path.join(screenshotDir, 'lighting-study-office.png');
+  fs.writeFileSync(officeImgPath, Buffer.from(shotOffice.data, 'base64'));
+  console.log(`Saved office lights mode screenshot to ${officeImgPath} (${shotOffice.data.length} bytes b64)`);
+
+  // Toggle to Fullbright with 'N' key
+  await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', code: 'KeyN' }));`);
+  await new Promise((r) => setTimeout(r, 400));
+  const toggledMode = await evalJs(`(() => (window.forgeOfficeGame || window.game)?.lightsMode)()`);
+  const hudBtnText = await evalJs(`document.getElementById('lightsBtn')?.innerText`);
+  console.log(`Lights mode after N toggle: ${toggledMode}, HUD label: ${hudBtnText}`);
+  if (toggledMode !== 'fullbright' || !hudBtnText.includes('fullbright')) {
+    throw new Error(`Lights mode after N toggle expected 'fullbright', got ${toggledMode} (${hudBtnText})`);
+  }
+
+  // Capture Screenshot in Fullbright Mode
+  const shotFullbright = await send('Page.captureScreenshot', { format: 'png' });
+  const fullbrightImgPath = path.join(screenshotDir, 'lighting-study-fullbright.png');
+  fs.writeFileSync(fullbrightImgPath, Buffer.from(shotFullbright.data, 'base64'));
+  console.log(`Saved fullbright mode screenshot to ${fullbrightImgPath} (${shotFullbright.data.length} bytes b64)`);
+
+  // Toggle back to Office Mode
+  await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', code: 'KeyN' }));`);
+  await new Promise((r) => setTimeout(r, 300));
+
+  // 10. Test Voice Mic Graceful Failure When Denied
+  console.log('Step I: Testing Voice mic enable (graceful handling when mic denied)...');
+  await evalJs(`(() => {
+    const g = window.forgeOfficeGame || window.game;
+    if (g && g.voice) {
+      g.voice.enableMic().catch(() => {});
+    }
+  })()`);
+  await new Promise((r) => setTimeout(r, 600));
+  const notifs = await evalJs(`(() => (window.forgeOfficeGame || window.game)?.notifications?.map(n => n.text))()`);
+  console.log('Recent game notifications:', notifs);
+
+  // 11. Assert zero critical console errors
   console.log(`Console error count: ${consoleErrors.length}`);
   if (consoleErrors.length > 0) {
     console.error('Console errors logged:', consoleErrors);

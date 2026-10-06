@@ -367,7 +367,8 @@ function handleClientMessage(client, msg) {
   const now = Date.now();
   client.lastSeen = now;
 
-  switch (msg.type) {
+  const msgType = msg.t || msg.type;
+  switch (msgType) {
     case 'join': {
       if (typeof msg.name === 'string' && msg.name.trim()) {
         client.name = msg.name.trim().substring(0, 16);
@@ -512,6 +513,33 @@ function handleClientMessage(client, msg) {
 
     case 'ping': {
       sendTo(client.socket, { type: 'pong' });
+      break;
+    }
+
+    case 'va': {
+      // Proximity voice audio packet: { t: 'va', d: b64chunk, l: level }
+      if (typeof msg.d !== 'string') break;
+      const level = typeof msg.l === 'number' ? msg.l : 0.5;
+      const senderX = client.x;
+      const senderY = client.y;
+
+      // Forward to every other joined client whose player is within 800px (no echo back to sender)
+      for (const [otherId, otherClient] of clients) {
+        if (otherId !== client.id && otherClient.joined && !otherClient.socket.destroyed) {
+          const dist = Math.hypot(otherClient.x - senderX, otherClient.y - senderY);
+          if (dist <= 800) {
+            sendTo(otherClient.socket, {
+              t: 'va',
+              from: client.id,
+              name: client.name,
+              d: msg.d,
+              l: level,
+              x: senderX,
+              y: senderY
+            });
+          }
+        }
+      }
       break;
     }
   }

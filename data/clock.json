@@ -1,16 +1,16 @@
 {
   "nathan": {
-    "clocked_in_since": null,
-    "total_ms": 4686,
-    "sessions": 3,
-    "longest_ms": 1747,
-    "sessions_with": 0
+    "clocked_in_since": 1791301449527,
+    "total_ms": 1666312,
+    "sessions": 9,
+    "longest_ms": 1012889,
+    "sessions_with": 1
   },
   "gavin": {
-    "clocked_in_since": null,
+    "clocked_in_since": 1791301359875,
     "total_ms": 0,
-    "sessions": 0,
+    "sessions": 1,
     "longest_ms": 0,
-    "sessions_with": 0
+    "sessions_with": 1
   }
 }

@@ -124,24 +124,34 @@
       this.setTile(13, 17, T_DOOR, false);
       this.setTile(30, 17, T_DOOR, false);
 
-      // Status Board on Lobby North Wall: left side x:15..19, right side x:23..27
-      // Leaving x:20..22 as open lobby floor for the Claude doorway
+      // Status Board on Lobby North Wall: left side x:15..19, right side x:24..28
+      // Symmetrically centered on their wall spans with equal 1-tile gaps:
+      // Left span x:14..20 -> centered board x:15..19 (gap of 1 at 14, gap of 1 at 20)
+      // Right span x:23..29 -> centered board x:24..28 (gap of 1 at 23, gap of 1 at 29)
       for (let x = 15; x <= 19; x++) {
         this.setTile(x, 9, T_BOARD, true);
       }
-      for (let x = 23; x <= 27; x++) {
+      for (let x = 24; x <= 28; x++) {
         this.setTile(x, 9, T_BOARD, true);
       }
+      this.setTile(20, 9, T_FLOOR_LOBBY, false);
       this.setTile(21, 9, T_FLOOR_LOBBY, false);
+      this.setTile(22, 9, T_FLOOR_LOBBY, false);
+      this.setTile(23, 9, T_FLOOR_LOBBY, false);
 
       // C6 Front Desk in Lobby (x: 19..23, y: 12)
       for (let x = 19; x <= 23; x++) {
         this.setTile(x, 12, T_DESK, true);
       }
 
-      // 7. Opening to Archives from Lobby South (y: 22, x: 19..24)
-      for (let x = 19; x <= 24; x++) {
-        this.setTile(x, 22, T_FLOOR_LOBBY, false);
+      // 7. Archives south wall & doorway from Lobby South (y: 22, x: 17..26)
+      // Solid wall tiles flanking both sides of doorway in Archives wall color
+      for (let x = 17; x <= 26; x++) {
+        if (x === 21) {
+          this.setTile(x, 22, T_DOOR, false);
+        } else {
+          this.setTile(x, 22, T_WALL, true);
+        }
       }
       this.addDoor(21, 22, 'h', 'archives');
 
@@ -227,25 +237,123 @@
       return true;
     }
 
-    populateProjects(projects) {
-      const isNew = this.ensureArchivesCapacity(projects.length);
-      this.projectBoxes = [];
+    assertReachability() {
+      const spawn = { x: 21 * TILE + 16, y: 17 * TILE + 16 };
+      for (const door of this.doors) {
+        const path = this.findPath(spawn.x, spawn.y, door.x, door.y);
+        if (!path || path.length === 0) {
+          throw new Error(`Reachability assertion failed: Door ${door.name} at (${door.tileX}, ${door.tileY}) unreachable!`);
+        }
+      }
+      for (const [name, wp] of Object.entries(this.waypoints)) {
+        const path = this.findPath(spawn.x, spawn.y, wp.x, wp.y);
+        if (!path || path.length === 0) {
+          throw new Error(`Reachability assertion failed: Waypoint ${name} unreachable!`);
+        }
+      }
+      for (const shelf of this.shelves) {
+        const path = this.findPath(spawn.x, spawn.y, shelf.accessX * TILE + 16, shelf.accessY * TILE + 16);
+        if (!path || path.length === 0) {
+          throw new Error(`Reachability assertion failed: Shelf access (${shelf.accessX}, ${shelf.accessY}) unreachable!`);
+        }
+      }
+      return true;
+    }
 
-      projects.forEach((proj, index) => {
+    populateProjects(projects) {
+      if (!Array.isArray(projects)) return false;
+
+      // Sort projects by updated desc (newest first at front of Archives near the door)
+      const sorted = [...projects].sort((a, b) => {
+        const dateA = a.updated || '';
+        const dateB = b.updated || '';
+        return dateB.localeCompare(dateA);
+      });
+
+      const isNew = this.ensureArchivesCapacity(sorted.length);
+
+      if (!this.projectBoxesMap) {
+        this.projectBoxesMap = new Map();
+      }
+
+      const activeIds = new Set();
+
+      sorted.forEach((proj, index) => {
+        const id = String(proj.id || proj.name || `proj_${index}`);
+        activeIds.add(id);
         const shelf = this.shelves[index];
-        if (shelf) {
-          this.projectBoxes.push({
+        if (!shelf) return;
+
+        if (this.projectBoxesMap.has(id)) {
+          // Existing box: update fields in place
+          const box = this.projectBoxesMap.get(id);
+          box.project = proj;
+          box.shelf = shelf;
+          box.x = shelf.tileX * TILE + TILE / 2;
+          box.y = shelf.tileY * TILE + TILE / 2;
+          box.accessX = shelf.accessX * TILE + TILE / 2;
+          box.accessY = shelf.accessY * TILE + TILE / 2;
+          box.fadingOut = false;
+          box.opacity = 1.0;
+        } else {
+          // New box
+          const box = {
+            id,
             project: proj,
             shelf,
             x: shelf.tileX * TILE + TILE / 2,
             y: shelf.tileY * TILE + TILE / 2,
             accessX: shelf.accessX * TILE + TILE / 2,
-            accessY: shelf.accessY * TILE + TILE / 2
-          });
+            accessY: shelf.accessY * TILE + TILE / 2,
+            opacity: 1.0,
+            fadingOut: false,
+            fadeTimer: 0
+          };
+          this.projectBoxesMap.set(id, box);
         }
       });
 
+      // Mark removed boxes for fade out over ~1s
+      for (const [id, box] of this.projectBoxesMap.entries()) {
+        if (!activeIds.has(id) && !box.fadingOut) {
+          box.fadingOut = true;
+          box.fadeTimer = 1.0; // 1 second fade
+          if (box.shelf) {
+            box.shelf.hasEmptyMark = true;
+          }
+        }
+      }
+
+      this.projectBoxes = Array.from(this.projectBoxesMap.values());
+
+      // Re-run A* reachability assertion after any box layout change
+      this.assertReachability();
+
       return isNew;
+    }
+
+    updateProjectBoxes(dt) {
+      if (!this.projectBoxesMap) return;
+      let changed = false;
+
+      for (const [id, box] of this.projectBoxesMap.entries()) {
+        if (box.fadingOut) {
+          box.fadeTimer -= dt;
+          box.opacity = Math.max(0, box.fadeTimer / 1.0);
+          if (box.fadeTimer <= 0) {
+            if (box.shelf) {
+              box.shelf.hasEmptyMark = true;
+            }
+            this.projectBoxesMap.delete(id);
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        this.projectBoxes = Array.from(this.projectBoxesMap.values());
+        this.assertReachability();
+      }
     }
 
     buildWaypoints() {
@@ -278,13 +386,16 @@
         { x: 13, y: 17, kind: 'door_mat', variant: 'warm' },  // Break room door mat
         { x: 30, y: 17, kind: 'door_mat', variant: 'cool' },  // Storage door mat
         { x: 32, y: 22, kind: 'door_mat', variant: 'teal' },  // Trading floor door mat
-        { x: 14, y: 10, kind: 'plant', variant: 'potted_monstera' },
-        { x: 29, y: 10, kind: 'plant', variant: 'potted_palm' },
+        // Flanking plants for centered status boards (one each side of each centered strip on row 10)
+        { x: 14, y: 10, kind: 'plant', variant: 'potted_monstera' }, // left board left flank
+        { x: 20, y: 10, kind: 'plant', variant: 'potted_palm' },     // left board right flank
+        { x: 23, y: 10, kind: 'plant', variant: 'potted_fern' },     // right board left flank
+        { x: 29, y: 10, kind: 'plant', variant: 'potted_rubber' },   // right board right flank
         { x: 14, y: 21, kind: 'plant', variant: 'potted_fern' },
         { x: 29, y: 21, kind: 'plant', variant: 'potted_rubber' },
         { x: 15, y: 21, w: 2, h: 1, kind: 'bench', variant: 'cushioned_wood', solid: true },
-        { x: 14, y: 9, kind: 'framed_art', variant: 'mountain' },
-        { x: 28, y: 9, kind: 'framed_art', variant: 'cyber' },
+        { x: 14, y: 8, kind: 'framed_art', variant: 'mountain' },
+        { x: 29, y: 8, kind: 'framed_art', variant: 'cyber' },
         { x: 15, y: 12, kind: 'floor_lamp', variant: 'warm' },
 
         // OpenCode Studio Decor
@@ -339,47 +450,160 @@
           }
         }
       }
+
+      // Assert zero decor tiles intersect T_BOARD tiles (fail build if violated)
+      for (const item of this.decor) {
+        const w = item.w || 1;
+        const h = item.h || 1;
+        for (let dy = 0; dy < h; dy++) {
+          for (let dx = 0; dx < w; dx++) {
+            const tx = item.x + dx;
+            const ty = item.y + dy;
+            const tile = this.getTile(tx, ty);
+            if (tile === T_BOARD) {
+              throw new Error(`Decor placement violation: '${item.kind}' at (${tx}, ${ty}) intersects T_BOARD tile!`);
+            }
+          }
+        }
+      }
     }
 
     initLighting() {
+      const TILE = 32;
       this.lights = [
-        // Status board & lobby glow
-        { x: 21 * TILE + 16, y: 11 * TILE, radius: 240, color: 'rgba(90, 214, 160, 0.45)', flicker: 0 },
-        // C6 desk lamp
-        { x: 21 * TILE + 16, y: 12 * TILE, radius: 140, color: 'rgba(255, 235, 150, 0.55)', flicker: 0 },
-        // Lobby floor lamp
-        { x: 15 * TILE + 16, y: 12 * TILE + 16, radius: 120, color: 'rgba(255, 230, 160, 0.45)', flicker: 0 },
-        // Archives finding aids lamp
-        { x: 18 * TILE + 16, y: 23 * TILE + 16, radius: 100, color: 'rgba(255, 220, 140, 0.45)', flicker: 0 },
-        // OpenCode monitor & desk lamp
-        { x: 6 * TILE + 16, y: 6 * TILE, radius: 150, color: 'rgba(0, 200, 180, 0.5)', flicker: 0.05 },
-        { x: 5 * TILE + 16, y: 6 * TILE + 16, radius: 90, color: 'rgba(200, 245, 255, 0.4)', flicker: 0 },
-        // Claude monitor & desk lamp
-        { x: 21 * TILE + 16, y: 3 * TILE, radius: 150, color: 'rgba(255, 140, 66, 0.5)', flicker: 0.05 },
-        { x: 20 * TILE + 16, y: 3 * TILE + 16, radius: 90, color: 'rgba(255, 230, 170, 0.4)', flicker: 0 },
-        // Antigravity monitor & desk lamp
-        { x: 37 * TILE + 16, y: 6 * TILE, radius: 150, color: 'rgba(90, 169, 230, 0.5)', flicker: 0.05 },
-        { x: 38 * TILE + 16, y: 6 * TILE + 16, radius: 90, color: 'rgba(210, 235, 255, 0.4)', flicker: 0 },
-        // Break room warm light
-        { x: 7 * TILE, y: 17 * TILE, radius: 180, color: 'rgba(255, 220, 140, 0.5)', flicker: 0 },
-        // Storage room cool light
-        { x: 36 * TILE, y: 17 * TILE, radius: 180, color: 'rgba(200, 220, 255, 0.45)', flicker: 0 },
-        // Trading floor glow & monitor light
-        { x: 37 * TILE, y: 26 * TILE, radius: 240, color: 'rgba(56, 178, 172, 0.5)', flicker: 0.03 }
+        // 1. Lobby (Ceiling center + above C6 desk + status board glow + waiting lamp)
+        { room: 'lobby', kind: 'desk', x: 21 * TILE + 16, y: 12 * TILE + 8, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 1.0, extraWarm: true },
+        { room: 'lobby', kind: 'ceiling', x: 21 * TILE + 16, y: 16 * TILE + 16, radius: 4.0 * TILE, color: '#ffecd2', intensity: 1.0 },
+        { room: 'lobby', kind: 'board', x: 21 * TILE + 16, y: 10 * TILE, radius: 3.5 * TILE, color: '#e6fffa', intensity: 0.95 },
+        { room: 'lobby', kind: 'lamp', x: 15 * TILE + 16, y: 12 * TILE + 16, radius: 3.2 * TILE, color: '#ffe4b5', intensity: 0.95, extraWarm: true },
+
+        // 2. OpenCode Studio (Desk + corner bookshelf + entry)
+        { room: 'opencode', kind: 'desk', x: 6 * TILE + 16, y: 6 * TILE + 8, radius: 3.5 * TILE, color: '#e6f7ff', intensity: 1.0, extraWarm: true },
+        { room: 'opencode', kind: 'corner', x: 4 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
+        { room: 'opencode', kind: 'entry', x: 11 * TILE + 16, y: 7 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+
+        // 3. Claude-Code Office (Desk + west corner + east corner + entry)
+        { room: 'claude', kind: 'desk', x: 21 * TILE + 16, y: 3 * TILE + 8, radius: 3.5 * TILE, color: '#fff3e0', intensity: 1.0, extraWarm: true },
+        { room: 'claude', kind: 'corner', x: 16 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
+        { room: 'claude', kind: 'corner', x: 26 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
+        { room: 'claude', kind: 'entry', x: 21 * TILE + 16, y: 7 * TILE + 16, radius: 3.0 * TILE, color: '#ffecd2', intensity: 0.9 },
+
+        // 4. Antigravity Lab (Desk + corner server rack + entry)
+        { room: 'antigravity', kind: 'desk', x: 37 * TILE + 16, y: 6 * TILE + 8, radius: 3.5 * TILE, color: '#e8f0fe', intensity: 1.0, extraWarm: true },
+        { room: 'antigravity', kind: 'corner', x: 39 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
+        { room: 'antigravity', kind: 'entry', x: 32 * TILE + 16, y: 7 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+
+        // 5. Break Room (Counter + dining table + entry - strongest warm glow)
+        { room: 'breakroom', kind: 'counter', x: 4 * TILE + 16, y: 14 * TILE + 16, radius: 4.0 * TILE, color: '#ffdda1', intensity: 1.0, warmGlow: true },
+        { room: 'breakroom', kind: 'table', x: 7 * TILE + 16, y: 18 * TILE + 16, radius: 3.8 * TILE, color: '#ffd699', intensity: 1.0, warmGlow: true },
+        { room: 'breakroom', kind: 'entry', x: 11 * TILE + 16, y: 17 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+
+        // 6. Storage Room (Center + entry)
+        { room: 'storage', kind: 'ceiling', x: 36 * TILE + 16, y: 16 * TILE + 16, radius: 3.8 * TILE, color: '#f0f4f8', intensity: 0.95 },
+        { room: 'storage', kind: 'entry', x: 32 * TILE + 16, y: 17 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+
+        // 7. Trading Floor (Trader desk + entry)
+        { room: 'trading', kind: 'desk', x: 37 * TILE + 16, y: 26 * TILE + 16, radius: 4.0 * TILE, color: '#e6fffa', intensity: 1.0, extraWarm: true },
+        { room: 'trading', kind: 'entry', x: 32 * TILE + 16, y: 23 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+
+        // 8. Soft entry light by each door
+        { room: 'doors', kind: 'door', x: 21 * TILE + 16, y: 8 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+        { room: 'doors', kind: 'door', x: 13 * TILE + 16, y: 7 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+        { room: 'doors', kind: 'door', x: 30 * TILE + 16, y: 7 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+        { room: 'doors', kind: 'door', x: 13 * TILE + 16, y: 17 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+        { room: 'doors', kind: 'door', x: 30 * TILE + 16, y: 17 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+        { room: 'doors', kind: 'door', x: 21 * TILE + 16, y: 22 * TILE + 16, radius: 3.0 * TILE, color: '#fed7aa', intensity: 0.9 },
+        { room: 'doors', kind: 'door', x: 32 * TILE + 16, y: 22 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
+
+        // 9. Archives (Finding aids table + amber mood lanterns)
+        { room: 'archives', kind: 'table', x: 18 * TILE + 16, y: 23 * TILE + 16, radius: 3.2 * TILE, color: '#fed7aa', intensity: 0.92, amberMood: true }
       ];
 
-      // Add Archive lantern lights along the aisle every 4 tiles
-      for (let y = 25; y <= this.archivesMaxRow; y += 4) {
+      // Archives one lantern per shelf-bay along aisle
+      for (let y = 25; y <= this.archivesMaxRow; y += 3) {
         this.lights.push({
+          room: 'archives',
+          kind: 'bay',
           x: 21.5 * TILE,
-          y: y * TILE,
-          radius: 130,
-          color: 'rgba(255, 230, 170, 0.48)',
-          flicker: 0
+          y: y * TILE + 16,
+          radius: 3.5 * TILE,
+          color: '#ffedd5',
+          intensity: 0.9,
+          amberMood: true
         });
       }
 
-      this.lightDirty = true;
+      this.bakeLightmaps();
+    }
+
+    bakeLightmaps() {
+      if (typeof document === 'undefined') return;
+
+      const mapW = this.width * TILE;
+      const mapH = this.height * TILE;
+
+      if (!this.fullbrightCanvas) {
+        this.fullbrightCanvas = document.createElement('canvas');
+      }
+      this.fullbrightCanvas.width = 1;
+      this.fullbrightCanvas.height = 1;
+
+      if (!this.officeLightCanvas) {
+        this.officeLightCanvas = document.createElement('canvas');
+      }
+      this.officeLightCanvas.width = mapW;
+      this.officeLightCanvas.height = mapH;
+
+      const ctx = this.officeLightCanvas.getContext('2d');
+      ctx.clearRect(0, 0, mapW, mapH);
+
+      // Ambient floor darkness: 1 - 0.62 = 0.38 (rooms stay clearly visible everywhere)
+      const ambientFloor = 0.62;
+      const ambientDarkness = 1.0 - ambientFloor; // 0.38
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(18, 16, 26, ${ambientDarkness.toFixed(3)})`;
+      ctx.fillRect(0, 0, mapW, mapH);
+
+      // Carve out light pools with destination-out using smooth quadratic falloff
+      ctx.globalCompositeOperation = 'destination-out';
+      for (const light of this.lights) {
+        const rad = light.radius;
+        const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, rad);
+        const int = light.intensity || 1.0;
+        grad.addColorStop(0, `rgba(0, 0, 0, ${int.toFixed(2)})`);
+        grad.addColorStop(0.35, `rgba(0, 0, 0, ${(int * 0.82).toFixed(2)})`);
+        grad.addColorStop(0.70, `rgba(0, 0, 0, ${(int * 0.40).toFixed(2)})`);
+        grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(light.x, light.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Coziness pass: warm tint light pools (source-over with subtle golden/amber pools)
+      ctx.globalCompositeOperation = 'source-over';
+      for (const light of this.lights) {
+        const rad = light.radius;
+        let tint = 'rgba(255, 232, 192, 0.18)'; // warm white #ffe8c0
+        if (light.warmGlow) {
+          tint = 'rgba(255, 215, 140, 0.28)'; // break room strongest warm glow
+        } else if (light.extraWarm) {
+          tint = 'rgba(255, 235, 170, 0.24)'; // desk lamp extra warm pool
+        } else if (light.amberMood) {
+          tint = 'rgba(254, 215, 170, 0.16)'; // archives amber mood (>= floor brightness)
+        }
+
+        const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, rad);
+        grad.addColorStop(0, tint);
+        grad.addColorStop(0.5, tint.replace(/[\d\.]+\)$/, '0.08)'));
+        grad.addColorStop(1.0, tint.replace(/[\d\.]+\)$/, '0.0)'));
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(light.x, light.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     updateDoors(entities, sfx) {
@@ -538,116 +762,15 @@
       return null; // No path found
     }
 
-    getAmbientDarkness(consoleOnline = true, lightsSetting = false) {
-      if (lightsSetting) {
-        // Darkness disabled entirely: ambient 0.0 ("not dark at all")
-        return 0.0;
-      }
-
-      const now = new Date();
-      const hours = now.getHours() + now.getMinutes() / 60;
-      let ambient = 0.12;
-
-      // Real local time of day:
-      // daytime (7:00–19:00) ≈ 0.12 (nearly fully lit, just a hint of mood)
-      // dusk transition (19:00–21:00) ≈ smooth transition from 0.12 to 0.60
-      // dawn transition (5:00–7:00) ≈ smooth transition from 0.60 to 0.12
-      // night (21:00–5:00) ≈ 0.60
-      if (hours >= 7 && hours <= 19) {
-        ambient = 0.12;
-      } else if (hours > 19 && hours < 21) {
-        const t = (hours - 19) / 2;
-        ambient = 0.12 + t * (0.60 - 0.12);
-      } else if (hours >= 5 && hours < 7) {
-        const t = (hours - 5) / 2;
-        ambient = 0.60 - t * (0.60 - 0.12);
-      } else {
-        ambient = 0.60;
-      }
-
-      // Small additional dimmer on top if console is offline (+0.12)
-      if (!consoleOnline) {
-        ambient += 0.12;
-      }
-
-      return Math.min(0.95, ambient);
+    getAmbientDarkness() {
+      return 0.0;
     }
 
-    renderLightOverlay(viewX, viewY, viewWidth, viewHeight, playerEntities, consoleOnline = true, lightsSetting = false) {
-      if (!this.lightCanvas) {
-        this.lightCanvas = document.createElement('canvas');
-        this.lightCtx = this.lightCanvas.getContext('2d');
+    renderLightOverlay(viewX, viewY, viewWidth, viewHeight, playerEntities, consoleOnline = true, lightsMode = 'office') {
+      if (lightsMode === 'fullbright' || lightsMode === true) {
+        return null;
       }
-
-      if (this.lightCanvas.width !== viewWidth || this.lightCanvas.height !== viewHeight) {
-        this.lightCanvas.width = viewWidth;
-        this.lightCanvas.height = viewHeight;
-        this.lightDirty = true;
-      }
-
-      const ctx = this.lightCtx;
-      const ambientDark = this.getAmbientDarkness(consoleOnline, lightsSetting);
-
-      if (ambientDark <= 0.001) {
-        // Full bright setting active: no dark overlay at all!
-        ctx.clearRect(0, 0, viewWidth, viewHeight);
-        return this.lightCanvas;
-      }
-
-      // Ambient dark multiply layer
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = `rgba(14, 18, 28, ${ambientDark.toFixed(3)})`;
-      ctx.fillRect(0, 0, viewWidth, viewHeight);
-
-      // Carve out light holes with destination-out
-      ctx.globalCompositeOperation = 'destination-out';
-
-      // Scale hole carving intensity by daytime darkness factor (subtler holes during bright day, prominent at night)
-      const dayFactor = Math.min(1.0, ambientDark / 0.60);
-
-      // 1. Static office lights
-      for (const light of this.lights) {
-        const lx = light.x - viewX;
-        const ly = light.y - viewY;
-        const flicker = light.flicker ? (Math.random() - 0.5) * light.flicker * light.radius * Math.max(0.5, dayFactor) : 0;
-        const rad = light.radius + flicker;
-
-        if (lx + rad < 0 || lx - rad > viewWidth || ly + rad < 0 || ly - rad > viewHeight) {
-          continue;
-        }
-
-        const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, rad);
-        const baseIntensity = consoleOnline ? 0.94 : 0.65;
-        const intensity = baseIntensity * Math.max(0.35, dayFactor);
-        grad.addColorStop(0, `rgba(0, 0, 0, ${intensity.toFixed(2)})`);
-        grad.addColorStop(0.5, `rgba(0, 0, 0, ${(intensity * 0.6).toFixed(2)})`);
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(lx, ly, rad, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // 2. Personal auras for human players (they carry a soft warm lantern/aura)
-      if (playerEntities) {
-        for (const p of playerEntities) {
-          const px = p.x - viewX;
-          const py = p.y - viewY;
-          const rad = 100;
-          const grad = ctx.createRadialGradient(px, py, 0, px, py, rad);
-          const pIntensity = 0.85 * Math.max(0.35, dayFactor);
-          grad.addColorStop(0, `rgba(0, 0, 0, ${pIntensity.toFixed(2)})`);
-          grad.addColorStop(0.6, `rgba(0, 0, 0, ${(pIntensity * 0.4).toFixed(2)})`);
-          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(px, py, rad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      return this.lightCanvas;
+      return this.officeLightCanvas;
     }
   }
 

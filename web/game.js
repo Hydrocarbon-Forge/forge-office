@@ -55,15 +55,22 @@
       this.playerPath = null;
       this.clockModalOpen = false;
       this.minimapOpen = true;
+      this.sessionStartTime = Date.now();
 
-      // Camera
+      // Camera with smooth zoom (0.6x to 1.8x, default 1.25x)
       this.camera = {
         x: 0,
         y: 0,
         width: window.innerWidth,
         height: window.innerHeight,
-        zoom: 1.0
+        zoom: 1.25,
+        targetZoom: 1.25
       };
+      this.zoomAnchorX = window.innerWidth / 2;
+      this.zoomAnchorY = window.innerHeight / 2;
+
+      // Voice chat manager
+      this.voice = typeof VoiceChatManager !== 'undefined' ? new VoiceChatManager() : null;
 
       // Particles
       this.particles = [];
@@ -97,12 +104,15 @@
       this.wardrobeOpen = false;
       this.gameStarted = false;
 
-      // Lights setting (persisted in localStorage): true = full bright / darkness off
-      this.lightsOffSetting = false;
+      // Lights mode (persisted in localStorage): 'office' (default) vs 'fullbright'
+      this.lightsMode = 'office';
       try {
-        const saved = localStorage.getItem('forge_office_lights_off');
-        if (saved !== null) {
-          this.lightsOffSetting = saved === 'true';
+        const saved = localStorage.getItem('forge_office_lights_mode');
+        if (saved === 'fullbright' || saved === 'office') {
+          this.lightsMode = saved;
+        } else {
+          const oldOff = localStorage.getItem('forge_office_lights_off');
+          if (oldOff === 'true') this.lightsMode = 'fullbright';
         }
       } catch {}
     }
@@ -132,6 +142,17 @@
       // 6. Connect Network Bridge
       this.net = new NetworkBridge(this);
 
+      // 6b. Initialize Voice Chat Manager
+      if (this.voice) {
+        this.voice.init(
+          sfx.ctx,
+          this.net,
+          this.map,
+          () => ({ x: this.player.x, y: this.player.y }),
+          (toast) => this.showNotification(toast)
+        );
+      }
+
       // 7. Setup Start Screen & UI
       this.setupStartScreen();
       this.setupWardrobeUI();
@@ -150,6 +171,15 @@
       this.camera.width = w;
       this.camera.height = h;
       this.renderer.resize(w, h);
+    }
+
+    setTargetZoom(target, anchorX, anchorY) {
+      const clamped = Math.max(0.6, Math.min(1.8, target));
+      this.camera.targetZoom = clamped;
+      if (anchorX !== undefined && anchorY !== undefined) {
+        this.zoomAnchorX = anchorX;
+        this.zoomAnchorY = anchorY;
+      }
     }
 
     setupInput() {
@@ -175,8 +205,19 @@
           }
         } else if (e.key === 'm' || e.key === 'M') {
           const muted = sfx.toggleMute();
-          this.showNotification(muted ? 'Sound Muted (M)' : 'Sound Unmuted (M)');
+          if (this.voice) this.voice.setGlobalMute(muted);
+          this.showNotification(muted ? 'Sound & Voice Muted (M)' : 'Sound & Voice Unmuted (M)');
           this.updateMuteButton(muted);
+        } else if (e.key === 'v' || e.key === 'V') {
+          if (this.gameStarted && this.voice) {
+            const isMuted = this.voice.toggleMuteVoice();
+            this.showNotification(isMuted ? 'Voice Mic: Muted (V)' : 'Voice Mic: Active (V)');
+            this.updateVoiceUI();
+          }
+        } else if (e.key === '+' || e.key === '=') {
+          this.setTargetZoom(this.camera.targetZoom * 1.15, this.camera.width / 2, this.camera.height / 2);
+        } else if (e.key === '-' || e.key === '_') {
+          this.setTargetZoom(this.camera.targetZoom * 0.87, this.camera.width / 2, this.camera.height / 2);
         } else if (e.key === 'n' || e.key === 'N') {
           this.toggleLightsSetting();
         } else if (e.key === 'e' || e.key === 'E') {
@@ -193,12 +234,43 @@
         this.keys[e.code] = false;
       });
 
+      // Mouse wheel zoom centered on cursor
+      this.canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.12 : 0.89;
+        this.setTargetZoom(this.camera.targetZoom * factor, e.clientX, e.clientY);
+      }, { passive: false });
+
+      // Touch pinch zoom
+      let touchStartDist = 0;
+      let touchStartZoom = 1.0;
+      this.canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          touchStartDist = Math.hypot(dx, dy);
+          touchStartZoom = this.camera.targetZoom;
+        }
+      }, { passive: true });
+
+      this.canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && touchStartDist > 0) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const currentDist = Math.hypot(dx, dy);
+          const ratio = currentDist / touchStartDist;
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          this.setTargetZoom(touchStartZoom * ratio, midX, midY);
+        }
+      }, { passive: true });
+
       // Mouse click on interact prompt
       this.canvas.addEventListener('click', (e) => {
         if (this.nearBox && !this.activeInspection) {
           this.inspectProject(this.nearBox.project);
         } else if (this.nearDesk && this.agents && !this.activeInspection) {
-          this.agents.interactWithC6(sfx);
+          this.agents.interactWithC6(sfx, this.liveData, this.sessionStartTime);
         }
       });
     }
@@ -294,7 +366,7 @@
         return;
       }
       if (this.nearDesk && this.agents) {
-        this.agents.interactWithC6(sfx);
+        this.agents.interactWithC6(sfx, this.liveData, this.sessionStartTime);
         return;
       }
     }
@@ -311,9 +383,9 @@
 
       const statusEl = document.getElementById('projStatus');
       if (proj.deployed) {
-        statusEl.innerHTML = `<span class="badge deployed">DEPLOYED</span> ${proj.deployment_url ? `<a href="${proj.deployment_url}" target="_blank">${proj.deployment_url}</a>` : ''}`;
+        statusEl.innerHTML = `<span class="badge deployed">● DEPLOYED</span> ${proj.deployment_url ? `<a href="${proj.deployment_url}" target="_blank" rel="noopener noreferrer">${proj.deployment_url}</a>` : ''}`;
       } else {
-        statusEl.innerHTML = `<span class="badge dev">IN DEVELOPMENT</span>`;
+        statusEl.innerHTML = `<span class="badge dev">○ IN DEVELOPMENT</span>`;
       }
 
       const tagsEl = document.getElementById('projTags');
@@ -368,11 +440,36 @@
       // 1. Player Physics & Movement
       this.updatePlayer(dt);
 
-      // 2. Camera Tracking
-      const targetCamX = this.player.x - this.camera.width / 2;
-      const targetCamY = this.player.y - this.camera.height / 2;
+      // 1b. Dynamic Project Boxes update
+      this.map.updateProjectBoxes(dt);
+
+      // 2. Camera Zoom & Tracking (Smooth Lerp + Zoom-Aware Clamping)
+      const oldZoom = this.camera.zoom;
+      this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * 0.15;
+      if (Math.abs(this.camera.zoom - this.camera.targetZoom) < 0.001) {
+        this.camera.zoom = this.camera.targetZoom;
+      }
+
+      const visibleW = this.camera.width / this.camera.zoom;
+      const visibleH = this.camera.height / this.camera.zoom;
+      const targetCamX = this.player.x - visibleW / 2;
+      const targetCamY = this.player.y - visibleH / 2;
       this.camera.x += (targetCamX - this.camera.x) * 0.12;
       this.camera.y += (targetCamY - this.camera.y) * 0.12;
+
+      // Viewport camera clamp at all zoom levels
+      const mapW = this.map.width * 32;
+      const mapH = this.map.height * 32;
+      if (mapW >= visibleW) {
+        this.camera.x = Math.max(0, Math.min(this.camera.x, mapW - visibleW));
+      } else {
+        this.camera.x = (mapW - visibleW) / 2;
+      }
+      if (mapH >= visibleH) {
+        this.camera.y = Math.max(0, Math.min(this.camera.y, mapH - visibleH));
+      } else {
+        this.camera.y = (mapH - visibleH) / 2;
+      }
 
       // 3. Multiplayer interpolation
       if (this.net) {
@@ -391,6 +488,12 @@
       // 5. Agents update
       if (this.agents) {
         this.agents.update(dt, this.map, [this.player, ...this.net.getRemotePlayersList()], sfx, this.liveData);
+      }
+
+      // 5b. Voice chat update
+      if (this.voice) {
+        this.voice.update(dt);
+        this.updateVoiceUI();
       }
 
       // 6. Particles update
@@ -522,6 +625,7 @@
       let closestDist = 48; // interaction radius
 
       for (const box of this.map.projectBoxes) {
+        if (box.fadingOut) continue;
         const dist = Math.hypot(this.player.x - box.x, this.player.y - box.y);
         if (dist < closestDist) {
           closestDist = dist;
@@ -617,16 +721,19 @@
       renderer.clear();
 
       ctx.save();
-      // Apply camera view transform
+      // Apply camera view transform (zoom & world translation)
+      ctx.scale(this.camera.zoom, this.camera.zoom);
       ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
 
       // 1. Draw Map & Furniture
       renderer.renderMap(this.map, camera, this.liveData);
 
+      const now = performance.now();
+      const walkFrame = Math.floor(now / 120) % 4;
+
       // 2. Draw Remote Players
       if (this.net) {
         for (const remote of this.net.getRemotePlayersList()) {
-          const walkFrame = Math.floor(performance.now() / 180) % 2;
           renderer.renderAvatar(ctx, remote.x, remote.y, {
             color: remote.cosmetics.color,
             hat: remote.cosmetics.hat,
@@ -646,7 +753,7 @@
         face: this.player.cosmetics.face,
         facing: this.player.facing,
         isMoving: this.player.isMoving,
-        frame: this.player.footFrame
+        frame: this.player.isMoving ? walkFrame : 0
       });
       renderer.renderNameTag(ctx, this.player.x, this.player.y, this.player.name, '#FFD166');
 
@@ -665,21 +772,12 @@
         this.renderDeskPrompt(ctx, this.agents.c6);
       }
 
-      ctx.restore();
-
-      // 7. Lighting Overlay (Baked offscreen multiply canvas)
-      const lightOverlay = this.map.renderLightOverlay(
-        camera.x,
-        camera.y,
-        camera.width,
-        camera.height,
-        [this.player, ...this.net.getRemotePlayersList()],
-        this.liveData.online,
-        this.lightsOffSetting
-      );
-      if (lightOverlay) {
-        ctx.drawImage(lightOverlay, 0, 0);
+      // 7. Lighting Overlay (Baked lightmap canvas inside world transform)
+      if (this.lightsMode === 'office' && this.map.officeLightCanvas) {
+        ctx.drawImage(this.map.officeLightCanvas, 0, 0);
       }
+
+      ctx.restore();
 
       // 8. Draw Screen Notifications
       this.renderNotifications(ctx);
@@ -717,19 +815,27 @@
 
     renderInteractPrompt(ctx, box) {
       const x = box.x;
-      const y = box.y - 24;
-      const text = `[E] Inspect ${box.project.name || 'Project'}`;
+      const y = box.y - 28;
+      const title = `[E] ${box.project.name || 'Project'}`;
+      const desc = box.project.description ? (box.project.description.length > 40 ? box.project.description.substring(0, 40) + '...' : box.project.description) : null;
 
       ctx.save();
       ctx.font = 'bold 10px "Segoe UI Rounded", "Nunito", sans-serif';
-      const tw = ctx.measureText(text).width + 12;
+      const tw = Math.max(ctx.measureText(title).width, desc ? ctx.measureText(desc).width : 0) + 16;
+      const h = desc ? 30 : 18;
 
       ctx.fillStyle = '#22252A';
-      this.renderer.drawRoundedRect(ctx, x - tw / 2, y - 10, tw, 18, 5, true, false);
+      this.renderer.drawRoundedRect(ctx, x - tw / 2, y - 10, tw, h, 5, true, false);
 
       ctx.fillStyle = '#FFD166';
       ctx.textAlign = 'center';
-      ctx.fillText(text, x, y + 3);
+      ctx.fillText(title, x, y + 2);
+
+      if (desc) {
+        ctx.fillStyle = '#A0AEC0';
+        ctx.font = '8px "Segoe UI Rounded", sans-serif';
+        ctx.fillText(desc, x, y + 14);
+      }
       ctx.restore();
     }
 
@@ -906,6 +1012,11 @@
         sfx.playChime();
         this.showNotification(`Welcome to Forge Office, ${this.player.name}!`);
 
+        const startMicCheckbox = document.getElementById('startMicCheckbox');
+        if (startMicCheckbox && startMicCheckbox.checked && this.voice) {
+          this.voice.enableMic();
+        }
+
         if (this.net) {
           if (this.net.connected) {
             this.net.sendJoin();
@@ -917,7 +1028,7 @@
 
       const startLightsCheckbox = document.getElementById('startLightsCheckbox');
       if (startLightsCheckbox) {
-        startLightsCheckbox.checked = this.lightsOffSetting;
+        startLightsCheckbox.checked = this.lightsMode === 'fullbright';
         startLightsCheckbox.addEventListener('change', () => {
           this.toggleLightsSetting(startLightsCheckbox.checked);
         });
@@ -929,26 +1040,78 @@
           this.toggleLightsSetting();
         });
       }
+
+      const micBtn = document.getElementById('micBtn');
+      if (micBtn) {
+        micBtn.addEventListener('click', async () => {
+          if (!this.voice) return;
+          if (!this.voice.isMicEnabled) {
+            const ok = await this.voice.enableMic();
+            if (ok) this.showNotification('Voice: Mic Enabled (V to mute)');
+          } else {
+            const isMuted = this.voice.toggleMuteVoice();
+            this.showNotification(isMuted ? 'Voice: Mic Muted (V)' : 'Voice: Mic Active (V)');
+          }
+          this.updateVoiceUI();
+        });
+      }
+
       this.updateLightsUI();
+      this.updateVoiceUI();
     }
 
     toggleLightsSetting(force) {
-      this.lightsOffSetting = force !== undefined ? force : !this.lightsOffSetting;
+      if (force !== undefined) {
+        this.lightsMode = force ? 'fullbright' : 'office';
+      } else {
+        this.lightsMode = this.lightsMode === 'office' ? 'fullbright' : 'office';
+      }
       try {
-        localStorage.setItem('forge_office_lights_off', String(this.lightsOffSetting));
+        localStorage.setItem('forge_office_lights_mode', this.lightsMode);
       } catch {}
-      this.showNotification(this.lightsOffSetting ? 'Lights: Full Brightness (Darkness Off)' : 'Lights: Natural Time-of-Day');
+      this.showNotification(this.lightsMode === 'office' ? 'Lights: Office Warm (Default)' : 'Lights: Fullbright');
       this.updateLightsUI();
     }
 
     updateLightsUI() {
       const lightsBtn = document.getElementById('lightsBtn');
       if (lightsBtn) {
-        lightsBtn.innerText = this.lightsOffSetting ? '💡 LIGHTS: ON' : '🌙 LIGHTS: AUTO';
+        lightsBtn.innerText = this.lightsMode === 'office' ? '💡 LIGHTS: office' : '💡 LIGHTS: fullbright';
       }
       const startLightsCheckbox = document.getElementById('startLightsCheckbox');
       if (startLightsCheckbox) {
-        startLightsCheckbox.checked = this.lightsOffSetting;
+        startLightsCheckbox.checked = this.lightsMode === 'fullbright';
+      }
+    }
+
+    updateVoiceUI() {
+      const micBtn = document.getElementById('micBtn');
+      if (micBtn && this.voice) {
+        if (!this.voice.isMicEnabled) {
+          micBtn.innerText = '🎤 MIC: OFF (V)';
+          micBtn.classList.remove('active');
+        } else if (this.voice.isVoiceMuted || this.voice.isGlobalMuted) {
+          micBtn.innerText = '🎤 MIC: MUTED (V)';
+          micBtn.classList.remove('active');
+        } else if (this.voice.isTransmitting) {
+          micBtn.innerText = '🎙️ TALKING (V)';
+          micBtn.classList.add('active');
+        } else {
+          micBtn.innerText = '🎤 MIC: ON (V)';
+          micBtn.classList.remove('active');
+        }
+      }
+
+      const voiceIndicator = document.getElementById('voiceIndicator');
+      const speakerNameEl = document.getElementById('voiceSpeakerName');
+      if (voiceIndicator && speakerNameEl && this.voice) {
+        if (this.voice.activeSpeakers && this.voice.activeSpeakers.length > 0) {
+          voiceIndicator.classList.remove('hidden');
+          const names = this.voice.activeSpeakers.map(s => s.name).join(', ');
+          speakerNameEl.innerText = `Speaking: ${names}`;
+        } else {
+          voiceIndicator.classList.add('hidden');
+        }
       }
     }
 
@@ -1405,10 +1568,12 @@
       mctx.globalAlpha = 1.0;
 
       // Viewport rectangle overlay
+      const visibleW = this.camera.width / (this.camera.zoom || 1.0);
+      const visibleH = this.camera.height / (this.camera.zoom || 1.0);
       const vx = (this.camera.x / 32) * scaleX;
       const vy = (this.camera.y / 32) * scaleY;
-      const vw = (this.camera.width / 32) * scaleX;
-      const vh = (this.camera.height / 32) * scaleY;
+      const vw = (visibleW / 32) * scaleX;
+      const vh = (visibleH / 32) * scaleY;
 
       mctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
       mctx.lineWidth = 1.2;

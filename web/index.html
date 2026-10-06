@@ -16,13 +16,15 @@
   <div id="hudOverlay">
     <div class="hud-left">
       <div class="hud-title">FORGE OFFICE</div>
-      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights</span></div>
+      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights • V for Voice Mic</span></div>
       <div id="presenceChip" class="hud-chip"><span class="status-dot gray"></span> <span>Checking presence...</span></div>
+      <div id="voiceIndicator" class="hud-chip voice-chip hidden"><span class="status-dot green"></span> <span id="voiceSpeakerName">Voices</span></div>
     </div>
     <div class="hud-right">
       <button id="clockBtn" class="hud-btn">⏱️ CLOCK (K)</button>
       <button id="minimapBtn" class="hud-btn">🗺️ MAP (B)</button>
       <button id="lightsBtn" class="hud-btn">💡 LIGHTS (N)</button>
+      <button id="micBtn" class="hud-btn">🎤 MIC (V)</button>
       <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
       <button id="muteBtn" class="hud-btn">🔊 SOUND</button>
     </div>
@@ -90,6 +92,13 @@
         <label class="lights-checkbox-label">
           <input type="checkbox" id="startLightsCheckbox">
           <span>Full Brightness (Darkness Off)</span>
+        </label>
+      </div>
+
+      <div class="voice-setting-row" style="margin-top: 6px;">
+        <label class="lights-checkbox-label">
+          <input type="checkbox" id="startMicCheckbox">
+          <span>Enable Mic (Proximity Voice)</span>
         </label>
       </div>
 
@@ -230,6 +239,7 @@
   <script src="map.js"></script>
   <script src="render.js"></script>
   <script src="agents.js"></script>
+  <script src="voice.js"></script>
   <script src="net.js"></script>
   <script src="game.js"></script>
   <script src="app.js"></script>

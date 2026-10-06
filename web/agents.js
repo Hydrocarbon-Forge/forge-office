@@ -195,15 +195,12 @@
         if (c6.waveTimer <= 0) c6.isWaving = false;
       }
 
-      // Approach desk trigger (< 75px)
+      // Approach desk trigger (< 75px): visual greeting only, NO dialogue on proximity
       const inRange = nearestDist < 75;
       if (inRange && !c6.playerInRange) {
-        // Player just approached! Stand up + trigger typewriter bubble + ding SFX
         c6.isSitting = false;
         c6.playerInRange = true;
-        this.triggerC6Dialogue(sfx);
       } else if (!inRange && c6.playerInRange) {
-        // Player walked away: sit back down and reset bubble after short grace
         c6.playerInRange = false;
         c6.isSitting = true;
       }
@@ -223,36 +220,156 @@
         } else {
           // Bubble display countdown
           c6.bubbleTimer -= dt;
-          if (c6.bubbleTimer <= 0 && !c6.playerInRange) {
+          if (c6.bubbleTimer <= 0) {
             c6.currentBubble = null;
           }
         }
       }
     }
 
-    interactWithC6(sfx) {
+    interactWithC6(sfx, liveData, sessionStartTime) {
       const c6 = this.c6;
       c6.isSitting = false;
       c6.playerInRange = true;
-      this.triggerC6Dialogue(sfx);
-    }
 
-    triggerC6Dialogue(sfx) {
-      const c6 = this.c6;
-      const lines = (this.officeData && this.officeData.c6 && this.officeData.c6.dialogue) || [
-        'Hi! Welcome to the Hydrocarbon Forge office.',
-        'The main board is looking good today!',
-        'The archives keep growing — check the new box down the hall.'
+      const scenarios = (this.officeData && this.officeData.c6_scenarios) || {};
+      const now = performance.now();
+
+      // If player mashes E (within 9s while interacting), advance to next variant of same scenario without re-rolling
+      if (c6.lastScenario && c6.lastTriggerTime && (now - c6.lastTriggerTime < 9000)) {
+        const pool = scenarios[c6.lastScenario];
+        if (Array.isArray(pool) && pool.length > 0) {
+          c6.variantIndex = ((c6.variantIndex || 0) + 1) % pool.length;
+          const template = pool[c6.variantIndex];
+          const text = this.interpolateC6Text(template, c6.scenarioContext || {});
+          c6.currentBubble = text;
+          c6.typewriterProgress = 0;
+          c6.bubbleTimer = 9.0;
+          c6.lastTriggerTime = now;
+          if (sfx) sfx.playDing();
+          return;
+        }
+      }
+
+      // Build context summary from liveData + agent states
+      const ctx = {};
+      let chosenScenario = null;
+
+      // Priority 1: service_red (telemetry alerts)
+      if (liveData && liveData.health && Array.isArray(liveData.health.services)) {
+        const redService = liveData.health.services.find(s => s && (s.status === 'down' || s.status === 'red' || s.healthy === false));
+        if (redService) {
+          chosenScenario = 'service_red';
+          ctx.service = redService.name || 'API gateway';
+        }
+      }
+
+      // Priority 2: antigravity_with_subagents
+      if (!chosenScenario) {
+        const agAgent = this.harnessAgents['antigravity'];
+        const subCount = (agAgent && agAgent.subagents && agAgent.subagents.length) || 0;
+        if (subCount > 0) {
+          chosenScenario = 'antigravity_with_subagents';
+          ctx.subagent_count = subCount === 1 ? '1 subagent' : `${subCount} subagents`;
+        }
+      }
+
+      // Priority 3: multiple_working
+      if (!chosenScenario) {
+        let workingCount = 0;
+        for (const agent of Object.values(this.harnessAgents)) {
+          if (agent.isRunning || agent.state === 'working') workingCount++;
+        }
+        if (workingCount >= 2) {
+          chosenScenario = 'multiple_working';
+        }
+      }
+
+      // Priority 4: new_project_box
+      if (!chosenScenario && liveData && Array.isArray(liveData.projects) && liveData.projects.length > 0) {
+        const sorted = [...liveData.projects].sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+        const newest = sorted[0];
+        if (newest && newest.name) {
+          chosenScenario = 'new_project_box';
+          ctx.project = newest.name;
+        }
+      }
+
+      // Priority 5: opencode_working
+      if (!chosenScenario) {
+        const oc = this.harnessAgents['opencode'];
+        if (oc && (oc.isRunning || oc.state === 'working')) {
+          chosenScenario = 'opencode_working';
+        }
+      }
+
+      // Priority 6: claude_working
+      if (!chosenScenario) {
+        const cc = this.harnessAgents['claude-code'];
+        if (cc && (cc.isRunning || cc.state === 'working')) {
+          chosenScenario = 'claude_working';
+        }
+      }
+
+      // Priority 7: trading_active
+      if (!chosenScenario && liveData && liveData.trading && liveData.trading.equity) {
+        chosenScenario = 'trading_active';
+      }
+
+      // Priority 8: presence_active
+      if (!chosenScenario && liveData && liveData.presence && Array.isArray(liveData.presence.active) && liveData.presence.active.length > 0) {
+        chosenScenario = 'presence_active';
+      }
+
+      // Priority 9: just_arrived
+      if (!chosenScenario && sessionStartTime) {
+        const sessionMs = Date.now() - sessionStartTime;
+        const minutes = Math.max(1, Math.round(sessionMs / 60000));
+        ctx.duration = minutes === 1 ? '1 minute' : `${minutes} minutes`;
+        chosenScenario = 'just_arrived';
+      }
+
+      // Default fallback: everyone_idle
+      if (!chosenScenario || !scenarios[chosenScenario]) {
+        chosenScenario = 'everyone_idle';
+      }
+
+      const pool = scenarios[chosenScenario] || [
+        "Quiet day on the cluster — all harness agents are currently resting or sipping coffee."
       ];
 
-      c6.currentBubble = lines[c6.dialogueIndex % lines.length];
-      c6.dialogueIndex++;
+      // Random variant selection, no repeat of the last line per session
+      if (!c6.seenLines) c6.seenLines = new Set();
+      let availableIndices = pool.map((_, i) => i).filter(i => !c6.seenLines.has(pool[i]));
+      if (availableIndices.length === 0) {
+        c6.seenLines.clear();
+        availableIndices = pool.map((_, i) => i);
+      }
+      const vIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+      c6.variantIndex = vIdx;
+      c6.lastScenario = chosenScenario;
+      c6.scenarioContext = ctx;
+      c6.lastTriggerTime = now;
+
+      const template = pool[vIdx];
+      c6.seenLines.add(template);
+      const text = this.interpolateC6Text(template, ctx);
+
+      c6.currentBubble = text;
       c6.typewriterProgress = 0;
-      c6.bubbleTimer = 6.0;
+      c6.bubbleTimer = 9.0;
 
       if (sfx) {
         sfx.playDing();
       }
+    }
+
+    interpolateC6Text(template, ctx) {
+      return template
+        .replace(/{service}/g, ctx.service || 'service')
+        .replace(/{duration}/g, ctx.duration || 'a few minutes')
+        .replace(/{project}/g, ctx.project || 'latest project')
+        .replace(/{subagent_count}/g, ctx.subagent_count || 'several subagents');
     }
 
     // -------------------------------------------------------------------------
@@ -612,7 +729,8 @@
     // -------------------------------------------------------------------------
     render(renderer, ctx) {
       const now = performance.now();
-      const walkFrame = Math.floor(now / 180) % 2;
+      const walkFrame = Math.floor(now / 120) % 4;
+      const subWalkFrame = Math.floor(now / 60) % 4;
 
       // 1. C6 Receptionist
       const c6 = this.c6;
@@ -670,7 +788,7 @@
             isMoving: sub.isMoving,
             scale: sub.scale,
             alpha: sub.alpha,
-            frame: sub.isMoving ? walkFrame : 0
+            frame: sub.isMoving ? subWalkFrame : 0
           });
 
           renderer.renderNameTag(ctx, sub.x, sub.y - 4, sub.name, '#E2E8F0', sub.alpha);

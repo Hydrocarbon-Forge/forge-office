@@ -111,7 +111,21 @@
       });
     }
 
+    sendVoiceChunk(b64, level) {
+      this.send({
+        type: 'va',
+        t: 'va',
+        d: b64,
+        l: level
+      });
+    }
+
     handleMessage(msg) {
+      if ((msg.t === 'va' || msg.type === 'va') && this.game.voice) {
+        this.game.voice.handleVoicePacket(msg);
+        return;
+      }
+
       switch (msg.type) {
         case 'welcome': {
           this.myId = msg.you;
