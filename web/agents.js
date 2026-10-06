@@ -107,7 +107,7 @@
         },
         'antigravity': {
           id: 'antigravity',
-          name: 'Antigravity',
+          name: 'Gemini',
           color: '#3D5A80',
           hat: 'antenna',
           face: 'classic',
@@ -565,6 +565,7 @@
               if (sfx) sfx.playCoffeeGurgle();
             } else if (agent.subState === 'fetch_papers') {
               agent.papers = true;
+              if (sfx) sfx.playPaperRustle();
               // Walk back home with papers
               const homePath = map.findPath(agent.x, agent.y, agent.homeX, agent.homeY);
               if (homePath) {

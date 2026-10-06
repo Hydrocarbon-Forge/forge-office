@@ -30,6 +30,8 @@
       this.spriteCache = new Map();
       this.scanlineCanvas = null;
       this.initScanlines();
+      this.vistaCanvas = null;
+      this.vistaDirty = true;
     }
 
     resize(width, height) {
@@ -56,6 +58,523 @@
     }
 
     // -------------------------------------------------------------------------
+    // Mountain Vista Pre-Rendering & Architectural Windows
+    // -------------------------------------------------------------------------
+    bakeMountainVista(map) {
+      if (typeof document === 'undefined') return;
+      const TILE = map.tile || 32;
+      const mapW = map.width * TILE;
+      const mapH = map.height * TILE;
+
+      if (!this.vistaCanvas) {
+        this.vistaCanvas = document.createElement('canvas');
+      }
+      this.vistaCanvas.width = mapW;
+      this.vistaCanvas.height = mapH;
+      const ctx = this.vistaCanvas.getContext('2d');
+      ctx.clearRect(0, 0, mapW, mapH);
+
+      // 1. Sky & Distant Mountain Peaks (North Vista & Sky Canopy)
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 260);
+      skyGrad.addColorStop(0.0, '#232738'); // Deep twilight slate-periwinkle
+      skyGrad.addColorStop(0.35, '#3E3B5C'); // Lavender twilight
+      skyGrad.addColorStop(0.65, '#6B4D68'); // Dusty rose
+      skyGrad.addColorStop(0.85, '#B86858'); // Sunset terracotta
+      skyGrad.addColorStop(1.0, '#F4B37D');  // Golden horizon haze
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, mapW, 260);
+
+      // Wispy Cirrus Clouds
+      ctx.fillStyle = 'rgba(255, 230, 210, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(mapW * 0.22, 38, 170, 13, -0.05, 0, Math.PI * 2);
+      ctx.ellipse(mapW * 0.72, 62, 210, 15, 0.04, 0, Math.PI * 2);
+      ctx.ellipse(mapW * 0.45, 90, 140, 11, -0.02, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Peak Layer 1 (Furthest Snowy Crests)
+      ctx.fillStyle = '#31334E';
+      ctx.beginPath();
+      const p1 = [
+        { x: 0, y: 130 }, { x: 120, y: 65 }, { x: 220, y: 110 }, { x: 380, y: 45 },
+        { x: 510, y: 105 }, { x: 670, y: 40 }, { x: 800, y: 95 }, { x: 960, y: 55 },
+        { x: 1120, y: 110 }, { x: 1260, y: 50 }, { x: mapW, y: 100 }, { x: mapW, y: 260 }, { x: 0, y: 260 }
+      ];
+      ctx.moveTo(p1[0].x, p1[0].y);
+      p1.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+
+      // Snow / Quartz Peak Highlights
+      ctx.strokeStyle = 'rgba(215, 205, 235, 0.45)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      p1.forEach(p => {
+        if (p.y < 85) {
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - 18, p.y + 24);
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + 14, p.y + 20);
+        }
+      });
+      ctx.stroke();
+
+      // Peak Layer 2 (Mid Massif)
+      ctx.fillStyle = '#252D42';
+      ctx.beginPath();
+      const p2 = [
+        { x: 0, y: 160 }, { x: 180, y: 95 }, { x: 340, y: 145 }, { x: 560, y: 80 },
+        { x: 740, y: 135 }, { x: 890, y: 85 }, { x: 1080, y: 125 }, { x: 1280, y: 75 },
+        { x: mapW, y: 120 }, { x: mapW, y: 260 }, { x: 0, y: 260 }
+      ];
+      ctx.moveTo(p2[0].x, p2[0].y);
+      p2.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+
+      // Peak Layer 3 (Pine Spire Ridge)
+      ctx.fillStyle = '#1D2633';
+      ctx.beginPath();
+      ctx.moveTo(0, 185);
+      for (let x = 0; x <= mapW; x += 16) {
+        const ridgeY = 150 + Math.sin(x * 0.015) * 18;
+        ctx.lineTo(x, ridgeY);
+        ctx.lineTo(x + 5, ridgeY - 9);
+        ctx.lineTo(x + 10, ridgeY);
+      }
+      ctx.lineTo(mapW, 260);
+      ctx.lineTo(0, 260);
+      ctx.closePath();
+      ctx.fill();
+
+      // Atmospheric Valley Mist
+      const mistGrad = ctx.createLinearGradient(0, 130, 0, 190);
+      mistGrad.addColorStop(0, 'rgba(180, 195, 215, 0.0)');
+      mistGrad.addColorStop(0.5, 'rgba(180, 195, 215, 0.35)');
+      mistGrad.addColorStop(1, 'rgba(180, 195, 215, 0.0)');
+      ctx.fillStyle = mistGrad;
+      ctx.fillRect(0, 130, mapW, 60);
+
+      // 2. Base Ground Terrain for Outside Voids
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          if (map.getTile(x, y) === 0) {
+            const px = x * TILE;
+            const py = y * TILE;
+            let groundColor = '#1C2E24';
+            if (x <= 16 && y >= 22) {
+              groundColor = '#243A2C'; // Southwest sanctuary: lush meadow
+            } else if (x >= 27 && x <= 29 && y >= 22 && y <= 34) {
+              groundColor = '#262B34'; // Central ravine: rock bed
+            } else if (y < 2) {
+              groundColor = '#1D2A26'; // North vista foreground
+            }
+            ctx.fillStyle = groundColor;
+            ctx.fillRect(px, py, TILE, TILE);
+
+            if ((x * 19 + y * 31) % 4 === 1) {
+              ctx.fillStyle = 'rgba(70, 110, 80, 0.18)';
+              ctx.fillRect(px + 4, py + 8, 3, 6);
+              ctx.fillRect(px + 18, py + 14, 3, 5);
+            }
+          }
+        }
+      }
+
+      // 3. Central Ravine Cascading Brook (x: 27..29, y: 22..34)
+      const ravineX = 27 * TILE;
+      const ravineY = 22 * TILE;
+      const ravineW = 3 * TILE;
+      const ravineH = 13 * TILE;
+      ctx.fillStyle = '#222830';
+      ctx.fillRect(ravineX, ravineY, ravineW, ravineH);
+
+      ctx.fillStyle = '#23586C';
+      ctx.fillRect(ravineX + 16, ravineY, ravineW - 32, ravineH);
+      ctx.strokeStyle = 'rgba(180, 230, 245, 0.45)';
+      ctx.lineWidth = 1.5;
+      for (let ry = ravineY + 10; ry < ravineY + ravineH; ry += 24) {
+        ctx.beginPath();
+        ctx.moveTo(ravineX + 20, ry);
+        ctx.lineTo(ravineX + ravineW - 20, ry + 3);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 7; i++) {
+        const bx = ravineX + 16 + (i % 2) * 36 + ((i * 17) % 18);
+        const by = ravineY + 20 + i * 50;
+        ctx.fillStyle = '#3A404A';
+        ctx.beginPath();
+        ctx.arc(bx, by, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#2D4E39';
+        ctx.beginPath();
+        ctx.arc(bx, by - 2, 4, 0, Math.PI);
+        ctx.fill();
+      }
+
+      // 4. Southwest Sanctuary: Alpine Tarn (Mountain Lake)
+      const lakeCx = 8 * TILE;
+      const lakeCy = 30 * TILE;
+      const lakeRx = 190;
+      const lakeRy = 120;
+      const lakeGrad = ctx.createRadialGradient(lakeCx, lakeCy, 15, lakeCx, lakeCy, lakeRx);
+      lakeGrad.addColorStop(0.0, '#0F2432');
+      lakeGrad.addColorStop(0.55, '#1B4456');
+      lakeGrad.addColorStop(0.85, '#2C6B7E');
+      lakeGrad.addColorStop(1.0, '#1E4A3E');
+
+      ctx.save();
+      ctx.beginPath();
+      const lakeSteps = 36;
+      for (let i = 0; i <= lakeSteps; i++) {
+        const angle = (i / lakeSteps) * Math.PI * 2;
+        const wobble = 1.0 + Math.sin(angle * 3) * 0.07 + Math.cos(angle * 5) * 0.04;
+        const px = lakeCx + Math.cos(angle) * lakeRx * wobble;
+        const py = lakeCy + Math.sin(angle) * lakeRy * wobble;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = lakeGrad;
+      ctx.fill();
+
+      ctx.strokeStyle = '#3F584C';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const reflGrad = ctx.createLinearGradient(lakeCx - lakeRx, lakeCy - lakeRy, lakeCx + lakeRx, lakeCy + lakeRy);
+      reflGrad.addColorStop(0.2, 'rgba(215, 150, 120, 0.25)');
+      reflGrad.addColorStop(0.8, 'rgba(35, 55, 75, 0.30)');
+      ctx.fillStyle = reflGrad;
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(180, 235, 245, 0.28)';
+      ctx.lineWidth = 1.2;
+      for (let dy = -lakeRy + 20; dy < lakeRy - 15; dy += 18) {
+        const chordLen = Math.sqrt(Math.max(0, 1 - (dy / lakeRy) ** 2)) * lakeRx * 0.72;
+        ctx.beginPath();
+        ctx.moveTo(lakeCx - chordLen + 15, lakeCy + dy);
+        ctx.lineTo(lakeCx + chordLen - 15, lakeCy + dy);
+        ctx.stroke();
+      }
+
+      const shoreRocks = [
+        { x: lakeCx - lakeRx * 0.72, y: lakeCy + lakeRy * 0.40, r: 9 },
+        { x: lakeCx - lakeRx * 0.45, y: lakeCy + lakeRy * 0.68, r: 7 },
+        { x: lakeCx + lakeRx * 0.62, y: lakeCy - lakeRy * 0.32, r: 10 },
+        { x: lakeCx + lakeRx * 0.42, y: lakeCy + lakeRy * 0.52, r: 8 },
+        { x: lakeCx - 10, y: lakeCy + lakeRy * 0.85, r: 6 }
+      ];
+      shoreRocks.forEach(rk => {
+        ctx.fillStyle = '#3E434D';
+        ctx.beginPath();
+        ctx.arc(rk.x, rk.y, rk.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#616978';
+        ctx.beginPath();
+        ctx.arc(rk.x - 2, rk.y - 2, rk.r * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = '#265C3E';
+      [
+        { x: lakeCx - 40, y: lakeCy - 20, r: 5 },
+        { x: lakeCx - 55, y: lakeCy - 12, r: 4 },
+        { x: lakeCx + 60, y: lakeCy + 25, r: 6 },
+        { x: lakeCx + 75, y: lakeCy + 15, r: 5 }
+      ].forEach(lp => {
+        ctx.beginPath();
+        ctx.arc(lp.x, lp.y, lp.r, 0.2, Math.PI * 1.8);
+        ctx.fill();
+      });
+      ctx.restore();
+
+      // Wildflowers across southwest meadow
+      const flowerColors = ['#FFE28A', '#F28B66', '#FFFFFF', '#ECC94B'];
+      for (let i = 0; i < 45; i++) {
+        const fx = 20 + ((i * 37) % 500);
+        const fy = 23 * TILE + ((i * 59) % (16 * TILE));
+        const distToLake = Math.hypot(fx - lakeCx, fy - lakeCy);
+        if (distToLake > 140) {
+          ctx.fillStyle = flowerColors[i % flowerColors.length];
+          ctx.beginPath();
+          ctx.arc(fx, fy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 5. Wooden Observation Decks
+      // Deck A: South of Break Room (y = 23, x: 2..12)
+      this.drawObservationDeck(ctx, 2 * TILE, 23 * TILE, 11 * TILE, TILE);
+      // Deck B: South of Trading Floor (y = 35, x: 31..41)
+      this.drawObservationDeck(ctx, 31 * TILE, 35 * TILE, 11 * TILE, TILE);
+
+      // 6. Foundation Retaining Wall & Cliff Ledges around Building
+      this.drawRetainingWallsAndCliffLedges(ctx, map);
+
+      // 7. Multi-Tier Conifer / Pine Trees
+      const pinePositions = [
+        // North Vista slope
+        { x: 2 * TILE + 16, y: 0.8 * TILE, s: 0.95 },
+        { x: 9 * TILE, y: 0.5 * TILE, s: 0.85 },
+        { x: 15 * TILE, y: 0.7 * TILE, s: 0.90 },
+        { x: 27 * TILE, y: 0.6 * TILE, s: 0.90 },
+        { x: 33 * TILE, y: 0.8 * TILE, s: 0.95 },
+        { x: 41 * TILE, y: 0.6 * TILE, s: 0.85 },
+        // West hillside
+        { x: 0.4 * TILE, y: 3 * TILE, s: 0.9 },
+        { x: 0.3 * TILE, y: 7 * TILE, s: 0.85 },
+        { x: 0.5 * TILE, y: 11 * TILE, s: 0.95 },
+        { x: 0.4 * TILE, y: 16 * TILE, s: 0.9 },
+        { x: 0.5 * TILE, y: 20 * TILE, s: 0.85 },
+        // Southwest Lake surroundings
+        { x: 2 * TILE, y: 26 * TILE, s: 1.1 },
+        { x: 14 * TILE, y: 25 * TILE, s: 1.05 },
+        { x: 3 * TILE, y: 35 * TILE, s: 1.15 },
+        { x: 13 * TILE, y: 37 * TILE, s: 1.1 },
+        { x: 7 * TILE, y: 38 * TILE, s: 1.0 },
+        // East Margin
+        { x: 43.4 * TILE, y: 3 * TILE, s: 0.9 },
+        { x: 43.3 * TILE, y: 9 * TILE, s: 0.85 },
+        { x: 43.5 * TILE, y: 15 * TILE, s: 0.95 },
+        { x: 43.4 * TILE, y: 24 * TILE, s: 1.0 },
+        { x: 43.3 * TILE, y: 30 * TILE, s: 0.9 }
+      ];
+      pinePositions.forEach(p => {
+        this.drawPineTree(ctx, p.x, p.y, p.s);
+      });
+
+      this.vistaDirty = false;
+    }
+
+    drawObservationDeck(ctx, x, y, w, h) {
+      ctx.fillStyle = '#634533';
+      ctx.fillRect(x, y, w, h);
+
+      ctx.fillStyle = '#855F47';
+      for (let px = x; px < x + w; px += 32) {
+        ctx.fillRect(px, y, 31, 2);
+      }
+      ctx.strokeStyle = '#3E2A1E';
+      ctx.lineWidth = 1;
+      for (let px = x; px <= x + w; px += 32) {
+        ctx.beginPath();
+        ctx.moveTo(px, y);
+        ctx.lineTo(px, y + h);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#4E3526';
+      ctx.fillRect(x, y + h - 6, w, 2.5);
+      ctx.fillRect(x, y + h - 12, w, 1.5);
+
+      for (let px = x; px <= x + w; px += 32) {
+        ctx.fillStyle = '#704D37';
+        ctx.fillRect(px - 1.5, y + h - 14, 3, 14);
+        ctx.fillStyle = '#38251A';
+        ctx.fillRect(px - 1.5, y + h - 14, 1, 14);
+      }
+    }
+
+    drawPineTree(ctx, x, y, scale = 1.0) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = 'rgba(15, 25, 20, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(0, 14, 14, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#3A2D23';
+      ctx.fillRect(-2.5, 4, 5, 10);
+
+      const tiers = [
+        { y: 6, w: 28, h: 14, cBase: '#1B3E32', cHi: '#2D6653' },
+        { y: -3, w: 22, h: 12, cBase: '#20473A', cHi: '#347560' },
+        { y: -12, w: 16, h: 11, cBase: '#255243', cHi: '#3B846D' },
+        { y: -21, w: 9, h: 10, cBase: '#2A5C4C', cHi: '#43947B' }
+      ];
+
+      tiers.forEach(t => {
+        ctx.fillStyle = t.cBase;
+        ctx.beginPath();
+        ctx.moveTo(0, t.y - t.h);
+        ctx.lineTo(t.w / 2, t.y);
+        ctx.lineTo(-t.w / 2, t.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = t.cHi;
+        ctx.beginPath();
+        ctx.moveTo(0, t.y - t.h);
+        ctx.lineTo(0, t.y);
+        ctx.lineTo(t.w / 2, t.y);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      ctx.restore();
+    }
+
+    drawRetainingWallsAndCliffLedges(ctx, map) {
+      const TILE = map.tile || 32;
+
+      ctx.fillStyle = '#383D48';
+      for (let x = 1; x <= 42; x++) {
+        const px = x * TILE;
+        ctx.fillRect(px, 1 * TILE - 4, TILE, 4);
+        ctx.fillStyle = '#1B1D22';
+        ctx.fillRect(px + TILE - 1, 1 * TILE - 4, 1, 4);
+        if (x % 4 === 0) {
+          ctx.fillStyle = '#2E4D38';
+          ctx.fillRect(px + 4, 1 * TILE - 3, 6, 2);
+        }
+        ctx.fillStyle = '#383D48';
+      }
+
+      for (let y = 1; y <= 22; y++) {
+        const py = y * TILE;
+        ctx.fillRect(1 * TILE - 4, py, 4, TILE);
+        ctx.fillStyle = '#1B1D22';
+        ctx.fillRect(1 * TILE - 4, py + TILE - 1, 4, 1);
+        ctx.fillStyle = '#383D48';
+      }
+
+      for (let y = 1; y <= 34; y++) {
+        const py = y * TILE;
+        ctx.fillRect(43 * TILE, py, 4, TILE);
+        ctx.fillStyle = '#1B1D22';
+        ctx.fillRect(43 * TILE, py + TILE - 1, 4, 1);
+        ctx.fillStyle = '#383D48';
+      }
+
+      const cliffEdges = [
+        { x0: 0, y0: 0, x1: map.width * TILE, y1: 8, dir: 'h' },
+        { x0: 0, y0: 0, x1: 8, y1: 23 * TILE, dir: 'v' },
+        { x0: 0, y0: (map.height - 1) * TILE + 24, x1: map.width * TILE, y1: 8, dir: 'h' },
+        { x0: 43.6 * TILE, y0: 0, x1: 8, y1: map.height * TILE, dir: 'v' }
+      ];
+
+      cliffEdges.forEach(ce => {
+        ctx.fillStyle = '#484E5B';
+        ctx.fillRect(ce.x0, ce.y0, ce.x1, ce.y1);
+        ctx.fillStyle = '#717B8F';
+        ctx.fillRect(ce.x0, ce.y0, ce.x1, 1.5);
+        ctx.fillStyle = 'rgba(23, 25, 30, 0.45)';
+        if (ce.dir === 'h') {
+          ctx.fillRect(ce.x0, ce.y0 + ce.y1, ce.x1, 6);
+        } else {
+          ctx.fillRect(ce.x0 + ce.x1, ce.y0, 6, ce.y1);
+        }
+      });
+    }
+
+    drawAnimatedVistaAccents(ctx) {
+      const now = Date.now();
+
+      // 1. Lake water sparkles (6 pulsing diamond glints)
+      const lakeCx = 8 * 32;
+      const lakeCy = 30 * 32;
+      const glints = [
+        { dx: -55, dy: -25 },
+        { dx: 45, dy: -15 },
+        { dx: -20, dy: 35 },
+        { dx: 70, dy: 18 },
+        { dx: -70, dy: 10 },
+        { dx: 15, dy: -45 }
+      ];
+
+      glints.forEach((g, i) => {
+        const pulse = 0.35 + 0.35 * Math.sin(now * 0.003 + i * 1.3);
+        if (pulse > 0.05) {
+          const gx = lakeCx + g.dx;
+          const gy = lakeCy + g.dy;
+          const r = 2.0;
+          ctx.fillStyle = `rgba(255, 250, 230, ${pulse.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.moveTo(gx, gy - r);
+          ctx.lineTo(gx + r, gy);
+          ctx.lineTo(gx, gy + r);
+          ctx.lineTo(gx - r, gy);
+          ctx.closePath();
+          ctx.fill();
+        }
+      });
+
+      // 2. Valley mist wisps (subtle drifting ambient fog)
+      const mistDrift = (now * 0.008) % (44 * 32);
+      ctx.fillStyle = 'rgba(200, 215, 235, 0.06)';
+      ctx.beginPath();
+      ctx.ellipse(mistDrift, 160, 180, 22, 0.02, 0, Math.PI * 2);
+      ctx.fill();
+
+      const ravineDriftY = 22 * 32 + ((now * 0.006) % (12 * 32));
+      ctx.beginPath();
+      ctx.ellipse(28.5 * 32, ravineDriftY, 40, 16, 0.05, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    drawArchitecturalWindow(ctx, px, py, TILE, map) {
+      const tx = Math.floor(px / TILE);
+      const ty = Math.floor(py / TILE);
+      const leftTile = map.getTile(tx - 1, ty);
+      const rightTile = map.getTile(tx + 1, ty);
+      const isHorizontal = (leftTile === 10 || leftTile === 15 || rightTile === 10 || rightTile === 15);
+
+      ctx.save();
+
+      // Outer timber frame borders (drawn as hollow casing around glass opening)
+      const inset = 3;
+      const gx = px + inset;
+      const gy = py + inset;
+      const gw = TILE - inset * 2;
+      const gh = TILE - inset * 2;
+
+      ctx.fillStyle = '#382A20';
+      ctx.fillRect(px, py, TILE, inset); // top border
+      ctx.fillRect(px, py + TILE - inset, TILE, inset); // bottom border
+      ctx.fillRect(px, py, inset, TILE); // left border
+      ctx.fillRect(px + TILE - inset, py, inset, TILE); // right border
+
+      // Glass base tint (clean mountain glass tint)
+      ctx.fillStyle = 'rgba(180, 220, 240, 0.12)';
+      ctx.fillRect(gx, gy, gw, gh);
+
+      // 45-degree daylight reflection sheen streak
+      const glare = ctx.createLinearGradient(gx, gy, gx + gw, gy + gh);
+      glare.addColorStop(0.0, 'rgba(255, 255, 255, 0.0)');
+      glare.addColorStop(0.35, 'rgba(255, 255, 255, 0.18)');
+      glare.addColorStop(0.50, 'rgba(255, 255, 255, 0.0)');
+      ctx.fillStyle = glare;
+      ctx.fillRect(gx, gy, gw, gh);
+
+      // Wooden window sill ledge
+      ctx.fillStyle = '#6E4F39';
+      ctx.fillRect(px, py + TILE - 4, TILE, 4);
+      ctx.fillStyle = '#936B4E';
+      ctx.fillRect(px, py + TILE - 4, TILE, 1.2);
+      ctx.fillStyle = 'rgba(20, 15, 10, 0.3)';
+      ctx.fillRect(px, py + TILE, TILE, 2.5);
+
+      // Mullion divider bars
+      ctx.fillStyle = '#382A20';
+      if (isHorizontal) {
+        ctx.fillRect(px + Math.floor(TILE / 2) - 1, gy, 2, gh - 1);
+        ctx.fillRect(gx, py + 9, gw, 1.5);
+      } else {
+        ctx.fillRect(gx, py + Math.floor(TILE / 2) - 1, gw, 2);
+      }
+
+      // Outer frame border highlight
+      ctx.strokeStyle = '#584333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+
+      ctx.restore();
+    }
+
+    // -------------------------------------------------------------------------
     // Map rendering
     // -------------------------------------------------------------------------
     renderMap(map, camera, liveData) {
@@ -69,17 +588,25 @@
       const x1 = Math.min(map.width - 1, Math.ceil((camera.x + visibleW) / TILE));
       const y1 = Math.min(map.height - 1, Math.ceil((camera.y + visibleH) / TILE));
 
-      // Draw Floor Tiles
+      // Pass 1: Blit Pre-Rendered Mountain Vista
+      if (!this.vistaCanvas || this.vistaDirty) {
+        this.bakeMountainVista(map);
+      }
+      if (this.vistaCanvas) {
+        ctx.drawImage(this.vistaCanvas, 0, 0);
+      }
+      // Pass 1b: Lightweight Animated Vista Accents (water sparkles & drifting mist)
+      this.drawAnimatedVistaAccents(ctx);
+
+      // Draw Floor Tiles (Pass 2)
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
           const type = map.getTile(x, y);
           const px = x * TILE;
           const py = y * TILE;
 
-          if (type === 0) {
-            // Void outside
-            ctx.fillStyle = '#14161C';
-            ctx.fillRect(px, py, TILE, TILE);
+          if (type === 0 || type === 10 || type === 15) {
+            // Void outside or wall/window - handled in separate layers
             continue;
           }
 
@@ -96,7 +623,7 @@
           } else if (type === 3) { // Claude
             floorBase = '#FCEADE'; // Soft terracotta peach
             floorAccent = '#F2D8C7';
-          } else if (type === 4) { // Antigravity
+          } else if (type === 4) { // Antigravity / Gemini
             floorBase = '#D9E8F5'; // High-tech pale slate
             floorAccent = '#C4DAEB';
           } else if (type === 5) { // Breakroom
@@ -140,14 +667,14 @@
       // Draw Rugs & Accents
       this.drawLobbyRug(ctx, 18 * TILE, 14 * TILE, 7 * TILE, 4 * TILE);
 
-      // Draw Walls (with 2.5D depth)
+      // Draw Walls & Architectural Windows (Pass 3)
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
           const type = map.getTile(x, y);
           const px = x * TILE;
           const py = y * TILE;
 
-          if (type === 10) { // Wall
+          if (type === 10) { // Solid Wall
             // Wall front face
             ctx.fillStyle = '#2C3539';
             ctx.fillRect(px, py, TILE, TILE);
@@ -162,10 +689,12 @@
             ctx.strokeRect(px + 1, py + 1, TILE - 2, TILE - 2);
 
             // Wall drop shadow onto floor below
-            if (y < map.height - 1 && map.getTile(x, y + 1) !== 10) {
+            if (y < map.height - 1 && map.getTile(x, y + 1) !== 10 && map.getTile(x, y + 1) !== 15 && map.getTile(x, y + 1) !== 0) {
               ctx.fillStyle = 'rgba(15, 20, 25, 0.35)';
               ctx.fillRect(px, py + TILE, TILE, 6);
             }
+          } else if (type === 15) { // Architectural Window
+            this.drawArchitecturalWindow(ctx, px, py, TILE, map);
           }
         }
       }
@@ -301,7 +830,13 @@
 
       // Title
       if (title) {
-        ctx.font = 'bold 10px "Segoe UI Rounded", "Nunito", sans-serif';
+        let fontSize = 9.5;
+        ctx.font = `bold ${fontSize}px "Segoe UI Rounded", "Nunito", sans-serif`;
+        const maxTitleW = pw - 62;
+        while (ctx.measureText(title).width > maxTitleW && fontSize > 6) {
+          fontSize -= 0.5;
+          ctx.font = `bold ${fontSize}px "Segoe UI Rounded", "Nunito", sans-serif`;
+        }
         ctx.fillStyle = '#E6FFFA';
         ctx.fillText(title, px + 8, py + 16);
       }
@@ -365,14 +900,20 @@
       const sessions = summary.sessions !== undefined ? summary.sessions : '--';
       const messages = summary.messages !== undefined ? summary.messages : '--';
       const toolCalls = summary.tool_calls !== undefined ? summary.tool_calls : '--';
-      const tokens = summary.total_tokens !== undefined ? (summary.total_tokens > 1000000 ? (summary.total_tokens / 1000000).toFixed(1) + 'M' : (summary.total_tokens / 1000).toFixed(0) + 'k') : '--';
+      let tokens = '--';
+      const allTok = (liveData && liveData.allTokens !== undefined && liveData.allTokens !== null)
+        ? liveData.allTokens
+        : (summary.billed_tokens !== undefined ? summary.billed_tokens : null);
+      if (allTok !== null && !isNaN(allTok)) {
+        tokens = allTok >= 1000000 ? (allTok / 1000000).toFixed(1) + 'M' : (allTok / 1000).toFixed(0) + 'k';
+      }
 
       const renderPanel = (px, py, pw, ph, title) => {
         this.renderCRTPanel(ctx, px, py, pw, ph, title, isOnline);
       };
 
       // 1. Left Panel (Overview): Centered over board tiles x:15..19
-      renderPanel(lx, ly, lw, lh, 'FORGE CLUSTER');
+      renderPanel(lx, ly, lw, lh, 'HYDROCARBON FORGE');
 
       // Online pill & clock
       ctx.fillStyle = isOnline ? '#38A169' : '#E53E3E';
@@ -503,8 +1044,8 @@
       // Lower row: Harness Agents
       const harnesses = [
         { name: 'OPEN', color: '#00A896', sess: (liveData && liveData.opencode && liveData.opencode.sessions) || 22 },
-        { name: 'CLAUDE', color: '#E07A5F', sess: 18 },
-        { name: 'AGY', color: '#3D5A80', sess: (liveData && liveData.antigravity && liveData.antigravity.sessions) || 38 }
+        { name: 'CLAUDE', color: '#E07A5F', sess: (liveData && liveData.claudecode && liveData.claudecode.sessions) || 9 },
+        { name: 'GEMINI', color: '#3D5A80', sess: (liveData && liveData.antigravity && liveData.antigravity.sessions) || 48 }
       ];
       const hColW = (rw - 16) / 3;
       harnesses.forEach((harn, i) => {

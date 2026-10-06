@@ -85,7 +85,9 @@
         online: true,
         summary: {},
         opencode: {},
+        claudecode: {},
         antigravity: {},
+        allTokens: null,
         projects: [],
         flow: null,
         trading: null,
@@ -204,10 +206,9 @@
             this.toggleMinimap();
           }
         } else if (e.key === 'm' || e.key === 'M') {
-          const muted = sfx.toggleMute();
-          if (this.voice) this.voice.setGlobalMute(muted);
-          this.showNotification(muted ? 'Sound & Voice Muted (M)' : 'Sound & Voice Unmuted (M)');
-          this.updateMuteButton(muted);
+          const musicMuted = sfx.toggleMusic();
+          this.showNotification(musicMuted ? 'Background Music: Off (M)' : 'Background Music: On (M)');
+          this.updateMusicButton(musicMuted);
         } else if (e.key === 'v' || e.key === 'V') {
           if (this.gameStarted && this.voice) {
             const isMuted = this.voice.toggleMuteVoice();
@@ -278,10 +279,11 @@
     setupDataPoller() {
       const pollStats = async () => {
         try {
-          const [sumRes, healthRes, ocRes, agRes, flowRes] = await Promise.all([
+          const [sumRes, healthRes, ocRes, ccRes, agRes, flowRes] = await Promise.all([
             fetch('/api/summary').then((r) => r.json()).catch(() => null),
             fetch('/api/health').then((r) => r.json()).catch(() => null),
             fetch('/api/opencode').then((r) => r.json()).catch(() => null),
+            fetch('/api/claudecode').then((r) => r.json()).catch(() => null),
             fetch('/api/antigravity').then((r) => r.json()).catch(() => null),
             fetch('/api/flow').then((r) => r.json()).catch(() => null)
           ]);
@@ -293,8 +295,47 @@
             this.liveData.summary = sumRes;
           }
           if (ocRes) this.liveData.opencode = ocRes;
+          if (ccRes) this.liveData.claudecode = ccRes;
           if (agRes) this.liveData.antigravity = agRes;
           if (flowRes) this.liveData.flow = flowRes;
+
+          // Compute billable total across all sources (matches insights "ALL"):
+          // - /api/summary     -> c6: billed_tokens (fallback input_tokens + output_tokens)
+          // - /api/opencode    -> sum of models[].billed_tokens
+          // - /api/claudecode  -> sum of models[].billed_tokens
+          // - /api/antigravity -> sum of models[].billed_tokens
+          const sumModelsBilled = (res) => {
+            if (!res || !Array.isArray(res.models)) return 0;
+            return res.models.reduce((acc, m) => {
+              const b = m.billed_tokens !== undefined ? Number(m.billed_tokens) : ((Number(m.input_tokens) || 0) + (Number(m.output_tokens) || 0));
+              return acc + (isNaN(b) ? 0 : b);
+            }, 0);
+          };
+
+          let c6Billed = 0;
+          let hasAnySource = false;
+          if (sumRes) {
+            if (sumRes.billed_tokens !== undefined) {
+              c6Billed = Number(sumRes.billed_tokens) || 0;
+              hasAnySource = true;
+            } else if (sumRes.input_tokens !== undefined || sumRes.output_tokens !== undefined) {
+              c6Billed = (Number(sumRes.input_tokens) || 0) + (Number(sumRes.output_tokens) || 0);
+              hasAnySource = true;
+            }
+          }
+
+          if (ocRes && Array.isArray(ocRes.models)) hasAnySource = true;
+          if (ccRes && Array.isArray(ccRes.models)) hasAnySource = true;
+          if (agRes && Array.isArray(agRes.models)) hasAnySource = true;
+
+          if (hasAnySource) {
+            const ocBilled = sumModelsBilled(ocRes);
+            const ccBilled = sumModelsBilled(ccRes);
+            const agBilled = sumModelsBilled(agRes);
+            this.liveData.allTokens = c6Billed + ocBilled + ccBilled + agBilled;
+          } else {
+            this.liveData.allTokens = null;
+          }
         } catch (err) {
           console.warn('API stats poll error:', err);
         }
@@ -373,6 +414,7 @@
 
     inspectProject(proj) {
       this.activeInspection = proj;
+      sfx.playPaperRustle();
       const modal = document.getElementById('projectModal');
       if (!modal) return;
 
@@ -1255,6 +1297,15 @@
       if (closeBtn) closeBtn.addEventListener('click', () => this.toggleWardrobe(false));
       if (wardrobeBtn) wardrobeBtn.addEventListener('click', () => this.toggleWardrobe());
 
+      const musicBtn = document.getElementById('musicBtn');
+      if (musicBtn) {
+        musicBtn.addEventListener('click', () => {
+          const musicMuted = sfx.toggleMusic();
+          this.updateMusicButton(musicMuted);
+          this.showNotification(musicMuted ? 'Background Music: Off (M)' : 'Background Music: On (M)');
+        });
+      }
+
       const muteBtn = document.getElementById('muteBtn');
       if (muteBtn) {
         muteBtn.addEventListener('click', () => {
@@ -1281,6 +1332,13 @@
       const muteBtn = document.getElementById('muteBtn');
       if (muteBtn) {
         muteBtn.innerText = muted ? '🔇 MUTED' : '🔊 SOUND';
+      }
+    }
+
+    updateMusicButton(musicMuted) {
+      const musicBtn = document.getElementById('musicBtn');
+      if (musicBtn) {
+        musicBtn.innerText = musicMuted ? '🔇 MUSIC OFF' : '🎵 MUSIC (M)';
       }
     }
 

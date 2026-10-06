@@ -17,6 +17,7 @@
   const T_SHELF = 12;
   const T_DESK = 13;
   const T_BOARD = 14;
+  const T_WINDOW = 15;
 
   class OfficeMap {
     constructor() {
@@ -26,6 +27,7 @@
       this.grid = []; // tile types
       this.solid = []; // boolean solid collision
       this.doors = []; // interactive doors
+      this.windows = []; // architectural windows
       this.lights = []; // light sources
       this.shelves = []; // archive shelf slots
       this.projectBoxes = []; // project boxes on shelves
@@ -43,8 +45,10 @@
       this.grid = new Array(this.width * this.height).fill(T_EMPTY);
       this.solid = new Array(this.width * this.height).fill(true);
       this.decor = [];
+      this.windows = [];
 
       this.buildBaseRooms();
+      this.buildWindows();
       this.buildWaypoints();
       this.buildDecor();
       this.initLighting();
@@ -161,6 +165,70 @@
       // 9. Trading Floor (East South Void: x: 30..42, y: 22..34)
       this.fillRoom(30, 22, 42, 34, T_FLOOR_TRADING);
       this.addDoor(32, 22, 'h', 'trading_floor');
+    }
+
+    buildWindows() {
+      this.windows = [];
+      const addWin = (x, y, orientation = 'h') => {
+        this.setTile(x, y, T_WINDOW, true);
+        this.windows.push({ x, y, orientation });
+      };
+
+      // 1. Claude-Code Office North Wall (y = 1)
+      // Panoramic picture window: x: 18..24 framing soaring snowy mountain peaks
+      for (let x = 18; x <= 24; x++) addWin(x, 1, 'h');
+      addWin(14, 1, 'h');
+      addWin(28, 1, 'h');
+      addWin(29, 1, 'h');
+
+      // 2. OpenCode Studio
+      // North Wall (y = 1)
+      addWin(6, 1, 'h');
+      addWin(7, 1, 'h');
+      // West Wall (x = 1)
+      addWin(1, 4, 'v');
+      addWin(1, 5, 'v');
+      addWin(1, 9, 'v');
+      addWin(1, 10, 'v');
+
+      // 3. Gemini / Antigravity Lab
+      // North Wall (y = 1)
+      addWin(36, 1, 'h');
+      addWin(37, 1, 'h');
+      addWin(38, 1, 'h');
+      // East Wall (x = 42)
+      addWin(42, 4, 'v');
+      addWin(42, 5, 'v');
+      addWin(42, 9, 'v');
+      addWin(42, 10, 'v');
+
+      // 4. Break Room
+      // West Wall (x = 1)
+      addWin(1, 15, 'v');
+      addWin(1, 16, 'v');
+      addWin(1, 17, 'v');
+      // South Wall (y = 22) - panoramic café glass wall overlooking the Alpine Lake!
+      for (let x = 4; x <= 10; x++) addWin(x, 22, 'h');
+
+      // 5. Trading Floor
+      // West Wall (x = 30) overlooking ravine
+      addWin(30, 26, 'v');
+      addWin(30, 27, 'v');
+      // East Wall (x = 42) overlooking sunrise valley
+      addWin(42, 26, 'v');
+      addWin(42, 27, 'v');
+      // South Wall (y = 34) overlooking southern terrace
+      for (let x = 34; x <= 38; x++) addWin(x, 34, 'h');
+
+      // 6. Archives
+      // South wall (y = 39) at the end of the center aisle
+      addWin(21, 39, 'h');
+      addWin(22, 39, 'h');
+      // West & East clerestory slot windows
+      [25, 29, 33, 37].forEach((y) => {
+        addWin(17, y, 'v');
+        addWin(26, y, 'v');
+      });
     }
 
     buildArchivesSection(startY, endY) {
@@ -564,8 +632,16 @@
       ctx.fillStyle = `rgba(18, 16, 26, ${ambientDarkness.toFixed(3)})`;
       ctx.fillRect(0, 0, mapW, mapH);
 
-      // Carve out light pools with destination-out using smooth quadratic falloff
+      // Carve out exterior void tiles & windows so outdoor mountain vista retains luminous natural sky and water
       ctx.globalCompositeOperation = 'destination-out';
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          const t = this.grid[y * this.width + x];
+          if (t === 0 || t === T_WINDOW) {
+            ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+          }
+        }
+      }
       for (const light of this.lights) {
         const rad = light.radius;
         const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, rad);

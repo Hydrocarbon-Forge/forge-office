@@ -43,7 +43,7 @@
       "The main status board is looking good today! Metrics are ticking.",
       "The archives keep growing — check out the project boxes down the hall.",
       "OpenCode is heads-down refactoring pipelines right now.",
-      "Antigravity is busy orchestrating subagents at its terminal.",
+      "Gemini is busy orchestrating subagents at its terminal.",
       "Claude-code has its beret on and is sipping coffee between runs.",
       "Need a break? The espresso machine in the break room is piping hot.",
       "All cluster services are reporting green across the board.",
@@ -51,6 +51,7 @@
       "Hold Shift while walking if you need to sprint across the office.",
       "Quiet hours start when the keyboards stop clacking... which is never!",
       "Keep an eye on the big wall screen for live session counts."
+    ]
   },
   "c6_scenarios": {
     "service_red": [
@@ -69,9 +70,9 @@
       "Fresh delivery from the pipeline: '{project}' is now archived and cataloged on the shelf."
     ],
     "antigravity_with_subagents": [
-      "Antigravity is heads-down orchestrating {subagent_count} at its terminal right now.",
-      "Telemetry is active in the Antigravity lab — {subagent_count} are helping crunch the workload.",
-      "Antigravity is deep in flow, dispatching instructions across {subagent_count}."
+      "Gemini is heads-down orchestrating {subagent_count} at its terminal right now.",
+      "Telemetry is active in the Gemini lab — {subagent_count} are helping crunch the workload.",
+      "Gemini is deep in flow, dispatching instructions across {subagent_count}."
     ],
     "opencode_working": [
       "OpenCode has its headphones on and is heads-down refactoring pipelines right now.",
@@ -151,7 +152,7 @@
     },
     "antigravity": {
       "id": "antigravity",
-      "name": "Antigravity",
+      "name": "Gemini",
       "office": "antigravity",
       "baseColor": "#3D5A80",
       "hat": "antenna",
@@ -169,7 +170,7 @@
     "lobby": { "name": "Main Lobby & Reception", "color": "#F4F1DE" },
     "opencode": { "name": "OpenCode Studio", "color": "#E8F8F5" },
     "claude-code": { "name": "Claude-Code Quarters", "color": "#FDF2E9" },
-    "antigravity": { "name": "Antigravity Lab", "color": "#EBF5FB" },
+    "antigravity": { "name": "Gemini Lab", "color": "#EBF5FB" },
     "breakroom": { "name": "Break Room & Cafe", "color": "#FEF9E7" },
     "archives": { "name": "The Archives", "color": "#EAEDED" }
   }
