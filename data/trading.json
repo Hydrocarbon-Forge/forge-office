@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-06T22:16:58.125585+00:00",
-  "updated_ts": 1791325018.125585,
+  "updated": "2026-10-07T04:28:58.197663+00:00",
+  "updated_ts": 1791347338.197663,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
@@ -8,8 +8,8 @@
     "start": 100.0,
     "total_pnl": -0.97,
     "total_pct": -0.97,
-    "day_pnl": -0.71,
-    "day_pct": -0.71,
+    "day_pnl": -0.1,
+    "day_pct": -0.1,
     "cash": 4.94,
     "cash_pct": 5.0,
     "total_fees": 0.14,
@@ -63,61 +63,61 @@
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 98.53,
+    "equity": 97.78,
     "start": 100.0,
-    "total_pnl": -1.47,
-    "total_pct": -1.47,
-    "day_pnl": -1.27,
-    "day_pct": -1.27,
-    "cash": 0.03,
+    "total_pnl": -2.22,
+    "total_pct": -2.22,
+    "day_pnl": -1.08,
+    "day_pct": -1.09,
+    "cash": 0.0,
     "cash_pct": 0.0,
-    "total_fees": 0.19,
+    "total_fees": 0.35,
     "tax_rate": 0.15,
     "taxable_gains": 0.0,
     "capital_gains_tax": 0.0,
-    "real_total": 98.53,
-    "taxed_total": 98.53,
+    "real_total": 97.78,
+    "taxed_total": 97.78,
     "holdings": [
       {
-        "sym": "AVAX",
-        "qty": 2.1579,
-        "px": 11.57,
-        "val": 24.98,
-        "w": 25.3
+        "sym": "BTC",
+        "qty": 0.0003,
+        "px": 84107.0,
+        "val": 25.23,
+        "w": 25.8
       },
       {
-        "sym": "LINK",
-        "qty": 1.7737,
-        "px": 13.93,
-        "val": 24.71,
-        "w": 25.1
+        "sym": "AVAX",
+        "qty": 2.2034,
+        "px": 11.0,
+        "val": 24.24,
+        "w": 24.8
       },
       {
         "sym": "SOL",
-        "qty": 0.2032,
-        "px": 121.18,
-        "val": 24.62,
-        "w": 25.0
+        "qty": 0.2048,
+        "px": 118.24,
+        "val": 24.22,
+        "w": 24.8
       },
       {
-        "sym": "WIF",
-        "qty": 98.9297,
-        "px": 0.24,
-        "val": 24.19,
-        "w": 24.5
+        "sym": "LINK",
+        "qty": 1.7755,
+        "px": 13.57,
+        "val": 24.1,
+        "w": 24.6
       }
     ],
     "trades_now": [
       {
-        "sym": "SOL",
+        "sym": "LINK",
         "act": "buy",
-        "qty": 0.0507,
-        "px": 121.3,
+        "qty": 1.2492,
+        "px": 13.59,
         "reason": "conviction entry/top-up",
-        "fee": 0.01
+        "fee": 0.02
       }
     ],
-    "n_trades": 18,
+    "n_trades": 31,
     "quotes_ok": 7,
     "quotes_total": 9
   },

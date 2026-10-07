@@ -539,64 +539,43 @@
     initLighting() {
       const TILE = 32;
       this.lights = [
-        // 1. Lobby (Ceiling center + above C6 desk + status board glow + waiting lamp)
-        { room: 'lobby', kind: 'desk', x: 21 * TILE + 16, y: 12 * TILE + 8, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 1.0, extraWarm: true },
-        { room: 'lobby', kind: 'ceiling', x: 21 * TILE + 16, y: 16 * TILE + 16, radius: 4.0 * TILE, color: '#ffecd2', intensity: 1.0 },
-        { room: 'lobby', kind: 'board', x: 21 * TILE + 16, y: 10 * TILE, radius: 3.5 * TILE, color: '#e6fffa', intensity: 0.95 },
-        { room: 'lobby', kind: 'lamp', x: 15 * TILE + 16, y: 12 * TILE + 16, radius: 3.2 * TILE, color: '#ffe4b5', intensity: 0.95, extraWarm: true },
+        // 1. Lobby: 1 main central overhead + 1 C6 front desk lamp
+        { room: 'lobby', kind: 'ceiling', x: 21 * TILE + 16, y: 16 * TILE + 16, radius: 6.5 * TILE, color: '#fff4e6', intensity: 0.95 },
+        { room: 'lobby', kind: 'desk', x: 21 * TILE + 16, y: 12 * TILE + 8, radius: 5.0 * TILE, color: '#ffe8c0', intensity: 0.90, extraWarm: true },
 
-        // 2. OpenCode Studio (Desk + corner bookshelf + entry)
-        { room: 'opencode', kind: 'desk', x: 6 * TILE + 16, y: 6 * TILE + 8, radius: 3.5 * TILE, color: '#e6f7ff', intensity: 1.0, extraWarm: true },
-        { room: 'opencode', kind: 'corner', x: 4 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
-        { room: 'opencode', kind: 'entry', x: 11 * TILE + 16, y: 7 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+        // 2. OpenCode Studio: 1 main overhead above dev workstations
+        { room: 'opencode', kind: 'ceiling', x: 7 * TILE + 16, y: 6 * TILE + 16, radius: 6.2 * TILE, color: '#e6f7ff', intensity: 0.95 },
 
-        // 3. Claude-Code Office (Desk + west corner + east corner + entry)
-        { room: 'claude', kind: 'desk', x: 21 * TILE + 16, y: 3 * TILE + 8, radius: 3.5 * TILE, color: '#fff3e0', intensity: 1.0, extraWarm: true },
-        { room: 'claude', kind: 'corner', x: 16 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
-        { room: 'claude', kind: 'corner', x: 26 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
-        { room: 'claude', kind: 'entry', x: 21 * TILE + 16, y: 7 * TILE + 16, radius: 3.0 * TILE, color: '#ffecd2', intensity: 0.9 },
+        // 3. Claude-Code Office: 1 main warm overhead above executive desk
+        { room: 'claude', kind: 'ceiling', x: 21 * TILE + 16, y: 4 * TILE + 16, radius: 6.5 * TILE, color: '#fff3e0', intensity: 0.95, extraWarm: true },
 
-        // 4. Antigravity Lab (Desk + corner server rack + entry)
-        { room: 'antigravity', kind: 'desk', x: 37 * TILE + 16, y: 6 * TILE + 8, radius: 3.5 * TILE, color: '#e8f0fe', intensity: 1.0, extraWarm: true },
-        { room: 'antigravity', kind: 'corner', x: 39 * TILE + 16, y: 3 * TILE + 16, radius: 3.5 * TILE, color: '#ffe8c0', intensity: 0.95 },
-        { room: 'antigravity', kind: 'entry', x: 32 * TILE + 16, y: 7 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+        // 4. Antigravity Lab: 1 high-tech crisp overhead
+        { room: 'antigravity', kind: 'ceiling', x: 36 * TILE + 16, y: 6 * TILE + 16, radius: 6.2 * TILE, color: '#e8f0fe', intensity: 0.95 },
 
-        // 5. Break Room (Counter + dining table + entry - strongest warm glow)
-        { room: 'breakroom', kind: 'counter', x: 4 * TILE + 16, y: 14 * TILE + 16, radius: 4.0 * TILE, color: '#ffdda1', intensity: 1.0, warmGlow: true },
-        { room: 'breakroom', kind: 'table', x: 7 * TILE + 16, y: 18 * TILE + 16, radius: 3.8 * TILE, color: '#ffd699', intensity: 1.0, warmGlow: true },
-        { room: 'breakroom', kind: 'entry', x: 11 * TILE + 16, y: 17 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+        // 5. Break Room: 1 main cafe table overhead + 1 counter accent
+        { room: 'breakroom', kind: 'table', x: 7 * TILE + 16, y: 18 * TILE + 16, radius: 6.0 * TILE, color: '#ffedd5', intensity: 0.95, warmGlow: true },
+        { room: 'breakroom', kind: 'counter', x: 4 * TILE + 16, y: 14 * TILE + 16, radius: 5.0 * TILE, color: '#ffe4b5', intensity: 0.88, warmGlow: true },
 
-        // 6. Storage Room (Center + entry)
-        { room: 'storage', kind: 'ceiling', x: 36 * TILE + 16, y: 16 * TILE + 16, radius: 3.8 * TILE, color: '#f0f4f8', intensity: 0.95 },
-        { room: 'storage', kind: 'entry', x: 32 * TILE + 16, y: 17 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+        // 6. Storage Room: 1 clean overhead
+        { room: 'storage', kind: 'ceiling', x: 36 * TILE + 16, y: 16 * TILE + 16, radius: 5.5 * TILE, color: '#f0f4f8', intensity: 0.85 },
 
-        // 7. Trading Floor (Trader desk + entry)
-        { room: 'trading', kind: 'desk', x: 37 * TILE + 16, y: 26 * TILE + 16, radius: 4.0 * TILE, color: '#e6fffa', intensity: 1.0, extraWarm: true },
-        { room: 'trading', kind: 'entry', x: 32 * TILE + 16, y: 23 * TILE + 16, radius: 3.2 * TILE, color: '#ffe8c0', intensity: 0.9 },
+        // 7. Trading Floor: 1 overhead illuminating trader terminal desk
+        { room: 'trading', kind: 'desk', x: 36 * TILE + 16, y: 28 * TILE + 16, radius: 6.5 * TILE, color: '#e6fffa', intensity: 0.95 },
 
-        // 8. Soft entry light by each door
-        { room: 'doors', kind: 'door', x: 21 * TILE + 16, y: 8 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-        { room: 'doors', kind: 'door', x: 13 * TILE + 16, y: 7 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-        { room: 'doors', kind: 'door', x: 30 * TILE + 16, y: 7 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-        { room: 'doors', kind: 'door', x: 13 * TILE + 16, y: 17 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-        { room: 'doors', kind: 'door', x: 30 * TILE + 16, y: 17 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-        { room: 'doors', kind: 'door', x: 21 * TILE + 16, y: 22 * TILE + 16, radius: 3.0 * TILE, color: '#fed7aa', intensity: 0.9 },
-        { room: 'doors', kind: 'door', x: 32 * TILE + 16, y: 22 * TILE + 16, radius: 2.8 * TILE, color: '#ffe8c0', intensity: 0.88 },
-
-        // 9. Archives (Finding aids table + amber mood lanterns)
-        { room: 'archives', kind: 'table', x: 18 * TILE + 16, y: 23 * TILE + 16, radius: 3.2 * TILE, color: '#fed7aa', intensity: 0.92, amberMood: true }
+        // 8. Archives: 1 finding aids table lamp + spaced bay lanterns (every 5 rows)
+        { room: 'archives', kind: 'table', x: 18 * TILE + 16, y: 23 * TILE + 16, radius: 5.5 * TILE, color: '#fed7aa', intensity: 0.90, amberMood: true }
       ];
 
-      // Archives one lantern per shelf-bay along aisle
-      for (let y = 25; y <= this.archivesMaxRow; y += 3) {
+      // Archives aisle lanterns spaced every 5 rows with wide 5.5-tile soft radius
+      for (let y = 26; y <= this.archivesMaxRow; y += 5) {
         this.lights.push({
           room: 'archives',
           kind: 'bay',
           x: 21.5 * TILE,
           y: y * TILE + 16,
-          radius: 3.5 * TILE,
+          radius: 5.5 * TILE,
           color: '#ffedd5',
-          intensity: 0.9,
+          intensity: 0.85,
           amberMood: true
         });
       }
@@ -625,9 +604,9 @@
       const ctx = this.officeLightCanvas.getContext('2d');
       ctx.clearRect(0, 0, mapW, mapH);
 
-      // Ambient floor darkness: 1 - 0.62 = 0.38 (rooms stay clearly visible everywhere)
-      const ambientFloor = 0.62;
-      const ambientDarkness = 1.0 - ambientFloor; // 0.38
+      // Ambient floor darkness: 1 - 0.74 = 0.26 (clean, even illumination, zero dark pooling)
+      const ambientFloor = 0.74;
+      const ambientDarkness = 1.0 - ambientFloor; // 0.26
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = `rgba(18, 16, 26, ${ambientDarkness.toFixed(3)})`;
       ctx.fillRect(0, 0, mapW, mapH);
@@ -642,13 +621,15 @@
           }
         }
       }
+
+      // Smooth cosine radial cutout for each logical light source
       for (const light of this.lights) {
         const rad = light.radius;
         const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, rad);
-        const int = light.intensity || 1.0;
+        const int = light.intensity || 0.95;
         grad.addColorStop(0, `rgba(0, 0, 0, ${int.toFixed(2)})`);
-        grad.addColorStop(0.35, `rgba(0, 0, 0, ${(int * 0.82).toFixed(2)})`);
-        grad.addColorStop(0.70, `rgba(0, 0, 0, ${(int * 0.40).toFixed(2)})`);
+        grad.addColorStop(0.40, `rgba(0, 0, 0, ${(int * 0.75).toFixed(2)})`);
+        grad.addColorStop(0.75, `rgba(0, 0, 0, ${(int * 0.30).toFixed(2)})`);
         grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
 
         ctx.fillStyle = grad;
@@ -657,22 +638,22 @@
         ctx.fill();
       }
 
-      // Coziness pass: warm tint light pools (source-over with subtle golden/amber pools)
+      // Coziness pass: gentle, subtle golden/amber wash without "fog" or hazy pooling
       ctx.globalCompositeOperation = 'source-over';
       for (const light of this.lights) {
         const rad = light.radius;
-        let tint = 'rgba(255, 232, 192, 0.18)'; // warm white #ffe8c0
+        let tint = 'rgba(255, 238, 210, 0.08)'; // gentle warm white
         if (light.warmGlow) {
-          tint = 'rgba(255, 215, 140, 0.28)'; // break room strongest warm glow
+          tint = 'rgba(255, 220, 160, 0.12)'; // break room gentle warm wash
         } else if (light.extraWarm) {
-          tint = 'rgba(255, 235, 170, 0.24)'; // desk lamp extra warm pool
+          tint = 'rgba(255, 235, 180, 0.10)'; // desk lamp subtle accent
         } else if (light.amberMood) {
-          tint = 'rgba(254, 215, 170, 0.16)'; // archives amber mood (>= floor brightness)
+          tint = 'rgba(254, 220, 180, 0.08)'; // archives soft amber mood
         }
 
         const grad = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, rad);
         grad.addColorStop(0, tint);
-        grad.addColorStop(0.5, tint.replace(/[\d\.]+\)$/, '0.08)'));
+        grad.addColorStop(0.5, tint.replace(/[\d\.]+\)$/, '0.04)'));
         grad.addColorStop(1.0, tint.replace(/[\d\.]+\)$/, '0.0)'));
 
         ctx.fillStyle = grad;

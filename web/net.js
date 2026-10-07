@@ -187,7 +187,7 @@
       this.remotePlayers.set(data.id, {
         id: data.id,
         name: data.name || 'Visitor',
-        cosmetics: data.cosmetics || { color: 'coral', hat: 'none', trail: 'none', face: 'classic' },
+        cosmetics: data.cosmetics || { color: 'coral', hat: 'none', trail: 'none', face: 'plain' },
         x: data.x || 32 * 32,
         y: data.y || 25 * 32,
         targetX: data.x || 32 * 32,

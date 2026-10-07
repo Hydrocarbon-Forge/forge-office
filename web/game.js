@@ -17,9 +17,9 @@
       } catch {}
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'classic' },
-        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'classic' },
-        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'classic' }
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'plain' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'plain' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'plain' }
       };
 
       let initialCosmetics = Object.assign({}, defaultCosmetics[savedProfile] || defaultCosmetics.nathan);
@@ -782,6 +782,7 @@
             face: remote.cosmetics.face,
             facing: remote.facing,
             isMoving: remote.isMoving,
+            heldItem: remote.heldItem,
             frame: remote.isMoving ? walkFrame : 0
           });
           renderer.renderNameTag(ctx, remote.x, remote.y, remote.name, '#FFFFFF');
@@ -795,6 +796,7 @@
         face: this.player.cosmetics.face,
         facing: this.player.facing,
         isMoving: this.player.isMoving,
+        heldItem: this.player.heldItem,
         frame: this.player.isMoving ? walkFrame : 0
       });
       renderer.renderNameTag(ctx, this.player.x, this.player.y, this.player.name, '#FFD166');
@@ -943,9 +945,9 @@
       const guestPreview = document.getElementById('guestAvatarPreview');
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'classic' },
-        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'classic' },
-        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'classic' }
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'plain' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'plain' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'plain' }
       };
 
       // Draw card previews
@@ -962,9 +964,9 @@
         });
       };
 
-      drawCardPreview(nathanPreview, 'teal', 'cap', 'classic');
-      drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'classic');
-      drawCardPreview(guestPreview, 'coral', 'cap', 'classic');
+      drawCardPreview(nathanPreview, 'teal', 'cap', 'plain');
+      drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'plain');
+      drawCardPreview(guestPreview, 'coral', 'cap', 'plain');
 
       const renderPreview = () => {
         if (!previewCanvas) return;
@@ -1237,7 +1239,7 @@
       // Faces
       const faceRow = document.createElement('div');
       faceRow.className = 'picker-row';
-      faceRow.innerHTML = '<label>Visor Face:</label>';
+      faceRow.innerHTML = '<label>Face Expression:</label>';
       const faceList = document.createElement('div');
       faceList.className = 'picker-options text-options';
 

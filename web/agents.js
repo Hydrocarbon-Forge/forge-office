@@ -44,7 +44,7 @@
           name: 'OpenCode',
           color: '#00A896',
           hat: 'headphones',
-          face: 'classic',
+          face: 'glasses',
           office: 'opencode',
           homeX: 6 * 32 + 16,
           homeY: 7 * 32 + 16,
@@ -77,7 +77,7 @@
           name: 'Claude',
           color: '#E07A5F',
           hat: 'beret',
-          face: 'classic',
+          face: 'plain',
           office: 'claude-code',
           homeX: 21 * 32 + 16,
           homeY: 4 * 32 + 16,
@@ -109,8 +109,8 @@
           id: 'antigravity',
           name: 'Gemini',
           color: '#3D5A80',
-          hat: 'antenna',
-          face: 'classic',
+          hat: 'cap',
+          face: 'plain',
           office: 'antigravity',
           homeX: 37 * 32 + 16,
           homeY: 7 * 32 + 16,
@@ -741,7 +741,9 @@
         face: c6.face,
         isSitting: c6.isSitting,
         facing: 1,
-        frame: 0
+        frame: 0,
+        isAgentC6: true,
+        forgeTool: true
       });
       renderer.renderNameTag(ctx, c6.x, c6.y, 'C6 (Reception)', '#F6E05E');
 
@@ -760,7 +762,11 @@
           isMoving,
           isSitting: !isMoving,
           papers: agent.papers,
-          frame: isMoving ? walkFrame : 0
+          frame: isMoving ? walkFrame : 0,
+          isAgentOpenCode: agent.id === 'opencode',
+          isAgentClaude: agent.id === 'claude-code',
+          hasScarf: agent.id === 'claude-code',
+          scarfColor: '#E07A5F'
         });
 
         const statusColor = agent.isRunning ? '#68D391' : '#A0AEC0';

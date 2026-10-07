@@ -16,8 +16,10 @@
       { "id": "none", "name": "None" },
       { "id": "cap", "name": "Ball Cap" },
       { "id": "beanie", "name": "Warm Beanie" },
-      { "id": "crown", "name": "Golden Crown" },
+      { "id": "headphones", "name": "Headphones" },
       { "id": "hard-hat", "name": "Safety Hard Hat" },
+      { "id": "beret", "name": "Artist Beret" },
+      { "id": "crown", "name": "Golden Crown" },
       { "id": "wizard", "name": "Starry Wizard" },
       { "id": "halo", "name": "Divine Halo" },
       { "id": "bow", "name": "Ruby Bow" }
@@ -29,10 +31,11 @@
       { "id": "bubble", "name": "Soapy Bubbles" }
     ],
     "faces": [
-      { "id": "classic", "name": "Classic Visor" },
-      { "id": "glasses", "name": "Nerd Glasses" },
+      { "id": "plain", "name": "Cozy Plain" },
+      { "id": "glasses", "name": "Focus Glasses" },
       { "id": "blush", "name": "Rosy Cheeks" },
-      { "id": "cyborg", "name": "Cyber Visor" }
+      { "id": "freckles", "name": "Warm Freckles" },
+      { "id": "goggles", "name": "Forge Goggles" }
     ]
   },
   "c6": {
