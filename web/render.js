@@ -3947,7 +3947,7 @@
       // Ground Drop Shadow
       ctx.fillStyle = 'rgba(15, 20, 28, 0.32)';
       ctx.beginPath();
-      ctx.ellipse(0, 12 * scale, 9.5 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 10.5 * scale, 9.5 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Turn squash / idle breathing
@@ -3975,7 +3975,7 @@
       ctx.fillStyle = pal.dark;
       ctx.strokeStyle = '#22252A';
       ctx.lineWidth = 1.5;
-      this.drawRoundedRect(ctx, -7.5 + backArmOffset, 0, 3.8, 6.5, 1.8, true, true);
+      this.drawRoundedRect(ctx, -7.5 + backArmOffset, 0, 3.8, 5.8, 1.8, true, true);
 
       // 2. Accessories behind body (satchel / toolbelt)
       if (options.isAgentC6 || options.forgeTool) {
@@ -4012,14 +4012,14 @@
         ctx.fillStyle = pal.dark;
         ctx.strokeStyle = '#22252A';
         ctx.lineWidth = 1.6;
-        this.drawRoundedRect(ctx, -4.5, 8, 4.5, 3.5, 1.8, true, true);
-        this.drawRoundedRect(ctx, 1.5, 8, 4.5, 3.5, 1.8, true, true);
+        this.drawRoundedRect(ctx, -4.5, 5.5, 4.5, 3.5, 1.8, true, true);
+        this.drawRoundedRect(ctx, 1.5, 5.5, 4.5, 3.5, 1.8, true, true);
       } else {
-        let leftX = -5.5, leftY = 8, leftH = 4.5;
-        let rightX = 1.5, rightY = 8, rightH = 4.5;
+        let leftX = -5.5, leftY = 5.5, leftH = 4.5;
+        let rightX = 1.5, rightY = 5.5, rightH = 4.5;
         if (isMoving) {
-          if (f === 0) { leftX = -7.5; leftY = 7; rightX = 2.5; rightY = 8.5; }
-          else if (f === 2) { leftX = -3.5; leftY = 8.5; rightX = 0.5; rightY = 7; }
+          if (f === 0) { leftX = -7.5; leftY = 4.5; rightX = 2.5; rightY = 6.0; }
+          else if (f === 2) { leftX = -3.5; leftY = 6.0; rightX = 0.5; rightY = 4.5; }
         }
         ctx.fillStyle = pal.dark;
         ctx.strokeStyle = '#22252A';
@@ -4040,11 +4040,11 @@
       ctx.beginPath();
       ctx.moveTo(0, -14);
       ctx.bezierCurveTo(4.5, -14, 7.5, -11, 7.5, -7.5);
-      ctx.bezierCurveTo(8.5, -2, 8.5, 3, 7.5, 7);
-      ctx.quadraticCurveTo(7, 8.5, 4.5, 8.5);
-      ctx.lineTo(-4.5, 8.5);
-      ctx.quadraticCurveTo(-7, 8.5, -7.5, 7);
-      ctx.bezierCurveTo(-8.5, 3, -8.5, -2, -7.5, -7.5);
+      ctx.bezierCurveTo(8.5, -2, 8.5, 1.5, 7.5, 4.5);
+      ctx.quadraticCurveTo(7, 6, 4.5, 6);
+      ctx.lineTo(-4.5, 6);
+      ctx.quadraticCurveTo(-7, 6, -7.5, 4.5);
+      ctx.bezierCurveTo(-8.5, 1.5, -8.5, -2, -7.5, -7.5);
       ctx.bezierCurveTo(-7.5, -11, -4.5, -14, 0, -14);
       ctx.closePath();
       ctx.fill();
@@ -4231,7 +4231,7 @@
         ctx.fillStyle = pal.fill;
         ctx.strokeStyle = '#22252A';
         ctx.lineWidth = 1.5;
-        this.drawRoundedRect(ctx, 3.5 + frontArmOffset, 0, 3.8, 6.8, 1.8, true, true);
+        this.drawRoundedRect(ctx, 3.5 + frontArmOffset, 0, 3.8, 6.0, 1.8, true, true);
       }
 
       ctx.restore();
