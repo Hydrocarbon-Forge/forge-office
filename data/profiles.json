@@ -4,19 +4,38 @@
     "name": "Nathan",
     "color": "teal",
     "hat": "cap",
-    "visor": "classic",
-    "face": "classic",
+    "visor": "plain",
+    "face": "plain",
     "trail": "sparkle",
-    "lastSeen": 1791344957535
+    "drinkPresets": [
+      {
+        "name": "Morning Spark",
+        "base": "coffee",
+        "addins": [
+          "milk",
+          "sugar"
+        ]
+      },
+      {
+        "name": "Zen Matcha",
+        "base": "tea",
+        "addins": [
+          "honey",
+          "oat"
+        ]
+      }
+    ],
+    "lastSeen": 1791350745288
   },
   "gavin": {
     "profile": "gavin",
-    "name": "ListenerB",
-    "color": "tangerine",
-    "hat": "beanie",
+    "name": "Bob",
+    "color": "coral",
+    "hat": "none",
     "visor": "classic",
     "face": "classic",
     "trail": "none",
-    "lastSeen": 1791343986480
+    "drinkPresets": [],
+    "lastSeen": 1791350683368
   }
 }

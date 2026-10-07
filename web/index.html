@@ -16,19 +16,19 @@
   <div id="hudOverlay">
     <div class="hud-left">
       <div class="hud-title">FORGE OFFICE</div>
-      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • N for Lights • V for Voice Mic • Monitor Button to hear self</span></div>
+      <div class="hud-pill"><span>WASD / Arrows to Move • Shift to Sprint • E to Interact • K for Clock • B for Map • V for Voice Mic • Q to Drink</span></div>
       <div id="presenceChip" class="hud-chip"><span class="status-dot gray"></span> <span>Checking presence...</span></div>
       <div id="voiceIndicator" class="hud-chip voice-chip hidden"><span class="status-dot green"></span> <span id="voiceSpeakerName">Voices</span></div>
+      <div id="meetingPrivateChip" class="hud-chip hidden" style="border-color: #3B82F6; color: #93C5FD;"><span class="status-dot green"></span> <span>🔇 private</span></div>
+      <div id="carrySlotPill" class="hud-chip hidden" style="border-color: #F59E0B; color: #FCD34D;"><span id="carryItemIcon">☕</span> <span id="carryItemText">Coffee</span> <button id="drinkActionBtn" class="hud-mini-btn" title="Drink [Q]">SIP [Q]</button></div>
     </div>
     <div class="hud-right">
-      <button id="clockBtn" class="hud-btn">⏱️ CLOCK (K)</button>
       <button id="minimapBtn" class="hud-btn">🗺️ MAP (B)</button>
-      <button id="lightsBtn" class="hud-btn">💡 LIGHTS (N)</button>
       <button id="micBtn" class="hud-btn">🎤 MIC (V)</button>
-      <button id="monitorBtn" class="hud-btn" title="Toggle Mic Self-Monitor (Hear yourself)">🎧 MONITOR: ON</button>
-      <button id="musicBtn" class="hud-btn">🎵 MUSIC (M)</button>
+      <button id="clockBtn" class="hud-btn">⏱️ CLOCK (K)</button>
       <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
-      <button id="muteBtn" class="hud-btn">🔊 SOUND</button>
+      <button id="settingsBtn" class="hud-btn">⚙️ SETTINGS</button>
+      <button id="lightsBtn" class="hud-btn hidden" style="display:none;" title="Lighting Mode (N)">💡 LIGHTS: office</button>
     </div>
   </div>
 
@@ -227,6 +227,239 @@
         <div class="detail-row">
           <div class="detail-label">Last Updated</div>
           <div id="projUpdated" class="detail-val"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (⚙️ button) -->
+  <div id="settingsModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>⚙️ OFFICE SETTINGS</h2>
+        <button id="closeSettingsBtn" class="close-btn">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-row">
+          <label class="setting-label">Lighting Atmosphere [N]</label>
+          <button id="settingLightsToggle" class="settings-toggle-btn">💡 Office Atmosphere (Warm)</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Voice Self-Monitor</label>
+          <button id="settingMonitorToggle" class="settings-toggle-btn">🎧 Self-Monitor: OFF</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Background Music [M]</label>
+          <button id="settingMusicToggle" class="settings-toggle-btn">🎵 Music: Playing</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Master Sound FX</label>
+          <button id="settingSoundToggle" class="settings-toggle-btn">🔊 Sound: Enabled</button>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Camera Zoom Presets</label>
+          <div class="zoom-presets-row">
+            <button id="zoomOverviewBtn" class="zoom-btn">0.6× Overview</button>
+            <button id="zoomDefaultBtn" class="zoom-btn active">1.0× Default</button>
+            <button id="zoomCloseupBtn" class="zoom-btn">1.4× Close-up</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-footer-hint">HUD holds quick items (Map, Mic, Clock, Wardrobe); rarely-used toggles consolidated here • All hotkeys (N, M, V, B, K, C, Q) remain active</div>
+    </div>
+  </div>
+
+  <!-- Whiteboard Modal (Meeting Room E key) -->
+  <div id="whiteboardModal" class="modal-overlay hidden">
+    <div class="modal-card whiteboard-card">
+      <div class="modal-header">
+        <h2>📝 GLASS WHITEBOARD (Meeting Room)</h2>
+        <button id="closeWhiteboardBtn" class="close-btn">✕</button>
+      </div>
+      <div class="whiteboard-toolbar">
+        <div class="color-palette">
+          <button class="wb-color-btn selected" data-color="#1E293B" style="background: #1E293B;"></button>
+          <button class="wb-color-btn" data-color="#2563EB" style="background: #2563EB;"></button>
+          <button class="wb-color-btn" data-color="#DC2626" style="background: #DC2626;"></button>
+          <button class="wb-color-btn" data-color="#059669" style="background: #059669;"></button>
+          <button class="wb-color-btn" data-color="#D97706" style="background: #D97706;"></button>
+          <button class="wb-color-btn" data-color="#7C3AED" style="background: #7C3AED;"></button>
+        </div>
+        <div class="wb-tools">
+          <button id="wbEraserBtn" class="tool-btn">🧹 Eraser</button>
+          <button id="wbClearBtn" class="tool-btn danger">🗑️ Clear Board</button>
+        </div>
+      </div>
+      <canvas id="whiteboardCanvas" width="560" height="340"></canvas>
+      <div class="modal-footer-hint">Live strokes sync across all meeting room participants in real-time</div>
+    </div>
+  </div>
+
+  <!-- Typing Board Modal (Meeting Room E key) -->
+  <div id="typingBoardModal" class="modal-overlay hidden">
+    <div class="modal-card typing-card">
+      <div class="modal-header">
+        <h2>⌨️ SHARED TYPING BOARD (Meeting Room)</h2>
+        <button id="closeTypingBoardBtn" class="close-btn">✕</button>
+      </div>
+      <div class="typing-board-container">
+        <div id="typingBoardLedger" class="typing-ledger-grid"></div>
+      </div>
+      <div class="typing-input-bar">
+        <input type="text" id="typingBoardInput" placeholder="Type here... [Enter to append, Backspace to delete]" autocomplete="off" spellcheck="false">
+        <button id="typingBoardSendBtn" class="send-btn">Post</button>
+        <button id="typingBoardClearBtn" class="tool-btn danger">Clear</button>
+      </div>
+      <div class="modal-footer-hint">Real-time ledger sync across meeting attendees</div>
+    </div>
+  </div>
+
+  <!-- Break Room Vending Machine Modal (Break Room E key) -->
+  <div id="vendingModal" class="modal-overlay hidden">
+    <div class="modal-card vending-card">
+      <div class="modal-header">
+        <h2>🥤 VEND-O-MATIC BEVERAGES</h2>
+        <button id="closeVendingBtn" class="close-btn">✕</button>
+      </div>
+      <div class="vending-grid">
+        <div class="vending-item" data-drink="Cyber Cola" data-color="#881337" data-icon="🥤">
+          <div class="vending-can" style="background: #881337;">🥤</div>
+          <div class="vending-title">Cyber Cola</div>
+          <div class="vending-desc">Sparkling crisp cola</div>
+          <button class="dispense-btn">DISPENSE</button>
+        </div>
+        <div class="vending-item" data-drink="Sparkling Yuzu" data-color="#D97706" data-icon="🍋">
+          <div class="vending-can" style="background: #D97706;">🍋</div>
+          <div class="vending-title">Sparkling Yuzu</div>
+          <div class="vending-desc">Citrus fizz water</div>
+          <button class="dispense-btn">DISPENSE</button>
+        </div>
+        <div class="vending-item" data-drink="Nitro Energy Fizz" data-color="#059669" data-icon="⚡">
+          <div class="vending-can" style="background: #059669;">⚡</div>
+          <div class="vending-title">Nitro Energy Fizz</div>
+          <div class="vending-desc">Caffeine + Taurine boost</div>
+          <button class="dispense-btn">DISPENSE</button>
+        </div>
+        <div class="vending-item" data-drink="Green Mountain Tea" data-color="#047857" data-icon="🍵">
+          <div class="vending-can" style="background: #047857;">🍵</div>
+          <div class="vending-title">Green Mountain Tea</div>
+          <div class="vending-desc">Cold-brewed alpine tea</div>
+          <button class="dispense-btn">DISPENSE</button>
+        </div>
+      </div>
+      <div id="vendingAnimStatus" class="dispense-status-box hidden">
+        <div class="coin-chute">🪙 *CLINK* Dispensing...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fridge Modal (Break Room E key) -->
+  <div id="fridgeModal" class="modal-overlay hidden">
+    <div class="modal-card fridge-card">
+      <div class="modal-header">
+        <h2>🧊 BREAK ROOM FRIDGE</h2>
+        <button id="closeFridgeBtn" class="close-btn">✕</button>
+      </div>
+      <div class="fridge-section-title">CHILLED ITEMS (GRAB TO CARRY)</div>
+      <div class="fridge-items-row" id="fridgeItemsContainer">
+        <div class="fridge-item-slot" data-drink="Spring Water" data-color="#38BDF8" data-icon="💧">
+          <div class="fridge-icon">💧</div>
+          <div class="fridge-name">Spring Water</div>
+          <button class="fridge-take-btn">Take</button>
+        </div>
+        <div class="fridge-item-slot" data-drink="Cold Brew" data-color="#451A03" data-icon="☕">
+          <div class="fridge-icon">☕</div>
+          <div class="fridge-name">Cold Brew</div>
+          <button class="fridge-take-btn">Take</button>
+        </div>
+        <div class="fridge-item-slot" data-drink="Club Soda" data-color="#06B6D4" data-icon="🫧">
+          <div class="fridge-icon">🫧</div>
+          <div class="fridge-name">Club Soda</div>
+          <button class="fridge-take-btn">Take</button>
+        </div>
+        <div class="fridge-item-slot" data-drink="Fresh Apple Juice" data-color="#EA580C" data-icon="🧃">
+          <div class="fridge-icon">🧃</div>
+          <div class="fridge-name">Apple Juice</div>
+          <button class="fridge-take-btn">Take</button>
+        </div>
+      </div>
+      <div id="fridgeReturnSection" class="fridge-return-box hidden">
+        <div class="fridge-holding-label">Carrying: <span id="fridgeHeldItemName">--</span></div>
+        <button id="fridgeReturnBtn" class="fridge-put-btn">Put carried drink back into fridge</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Artisan Drink Station Modal (Break Room E key) -->
+  <div id="drinkStationModal" class="modal-overlay hidden">
+    <div class="modal-card drink-station-card">
+      <div class="modal-header">
+        <h2>☕ ARTISAN DRINK STATION</h2>
+        <button id="closeDrinkStationBtn" class="close-btn">✕</button>
+      </div>
+      <div class="station-steps-grid">
+        <div class="station-col">
+          <div class="step-badge">1. BASE</div>
+          <div class="station-options" id="drinkBaseOptions">
+            <button class="station-opt-btn selected" data-base="coffee" data-color="#78350F" data-icon="☕">Coffee</button>
+            <button class="station-opt-btn" data-base="tea" data-color="#047857" data-icon="🍵">Matcha Tea</button>
+            <button class="station-opt-btn" data-base="cocoa" data-color="#581C87" data-icon="🍫">Hot Cocoa</button>
+            <button class="station-opt-btn" data-base="soda" data-color="#2563EB" data-icon="🥤">Fizzy Tonic</button>
+          </div>
+        </div>
+        <div class="station-col">
+          <div class="step-badge">2. ADD-INS</div>
+          <div class="station-options" id="drinkAddinOptions">
+            <label class="addin-checkbox"><input type="checkbox" value="milk"> Steamed Milk</label>
+            <label class="addin-checkbox"><input type="checkbox" value="oat"> Oat Milk</label>
+            <label class="addin-checkbox"><input type="checkbox" value="sugar"> Raw Sugar</label>
+            <label class="addin-checkbox"><input type="checkbox" value="honey"> Wild Honey</label>
+            <label class="addin-checkbox"><input type="checkbox" value="lemon"> Lemon Wedge</label>
+            <label class="addin-checkbox"><input type="checkbox" value="cinnamon"> Cinnamon</label>
+          </div>
+        </div>
+        <div class="station-col">
+          <div class="step-badge">3. BREW & PRESETS</div>
+          <button id="stationBrewBtn" class="brew-action-btn">☕ BREW DRINK</button>
+          <div id="stationBrewingIndicator" class="brewing-status hidden">Brewing...</div>
+          <div class="presets-section">
+            <div class="presets-header">SAVED PRESETS (MAX 4)</div>
+            <div class="save-preset-row">
+              <input type="text" id="presetNameInput" placeholder="Preset name..." maxlength="16">
+              <button id="savePresetBtn" class="preset-save-btn">Save</button>
+            </div>
+            <div id="presetsListContainer" class="presets-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Projector Dock Modal (Meeting Room E key) -->
+  <div id="projectorModal" class="modal-overlay hidden">
+    <div class="modal-card projector-card">
+      <div class="modal-header">
+        <h2>📽️ PROJECTOR SCREEN SHARING</h2>
+        <button id="closeProjectorBtn" class="close-btn">✕</button>
+      </div>
+      <div class="projector-dock-body">
+        <div class="dock-status-row">
+          <span class="status-dot green"></span>
+          <span id="dockStatusLabel">You are docked to the meeting room projector</span>
+        </div>
+        <div class="topic-row">
+          <label for="presenterTopicInput">Presentation Topic / Action</label>
+          <input type="text" id="presenterTopicInput" value="Live Architecture Review" maxlength="32">
+          <button id="updateTopicBtn" class="action-btn">Update Topic</button>
+        </div>
+        <div class="quick-topics-row">
+          <button class="topic-chip" data-topic="Architecture Review">Architecture</button>
+          <button class="topic-chip" data-topic="Sprint Goals & Velocity">Sprint Goals</button>
+          <button class="topic-chip" data-topic="Backend Harness Health">Harness Health</button>
+          <button class="topic-chip" data-topic="Design & UX Pass">UX Pass</button>
+        </div>
+        <div class="dock-actions">
+          <button id="undockBtn" class="tool-btn danger">Undock from Projector</button>
         </div>
       </div>
     </div>

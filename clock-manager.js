@@ -87,18 +87,32 @@ class ClockManager {
   upsertProfile(data) {
     if (!data || typeof data !== 'object') return;
     const key = (data.profile || data.name || 'guest').toLowerCase();
+    const existing = this.profilesData[key] || {};
     this.profilesData[key] = {
       profile: key,
       name: data.name || (key.charAt(0).toUpperCase() + key.slice(1)),
-      color: data.color || (data.cosmetics && data.cosmetics.color) || 'coral',
-      hat: data.hat || (data.cosmetics && data.cosmetics.hat) || 'none',
-      visor: data.visor || (data.cosmetics && (data.cosmetics.visor || data.cosmetics.face)) || 'classic',
-      face: data.face || (data.cosmetics && data.cosmetics.face) || 'classic',
-      trail: data.trail || (data.cosmetics && data.cosmetics.trail) || 'none',
+      color: data.color || (data.cosmetics && data.cosmetics.color) || existing.color || 'coral',
+      hat: data.hat || (data.cosmetics && data.cosmetics.hat) || existing.hat || 'none',
+      visor: data.visor || (data.cosmetics && (data.cosmetics.visor || data.cosmetics.face)) || existing.visor || 'classic',
+      face: data.face || (data.cosmetics && data.cosmetics.face) || existing.face || 'classic',
+      trail: data.trail || (data.cosmetics && data.cosmetics.trail) || existing.trail || 'none',
+      drinkPresets: Array.isArray(data.drinkPresets) ? data.drinkPresets.slice(0, 4) : (existing.drinkPresets || []),
       lastSeen: Date.now()
     };
     this.saveProfilesData();
     return this.profilesData[key];
+  }
+
+  saveDrinkPresets(profileKey, presets) {
+    if (!profileKey) return [];
+    const key = profileKey.toLowerCase();
+    if (!this.profilesData[key]) {
+      this.upsertProfile({ profile: key, name: key });
+    }
+    const valid = Array.isArray(presets) ? presets.slice(0, 4) : [];
+    this.profilesData[key].drinkPresets = valid;
+    this.saveProfilesData();
+    return valid;
   }
 
   clockIn(profileKey, clientId, now = Date.now()) {

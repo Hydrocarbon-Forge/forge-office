@@ -99,6 +99,39 @@
       this.nearBox = null;
       this.nearDesk = false;
 
+      // Round 6: Interactive target flags
+      this.nearMeetingDoor = false;
+      this.nearWhiteboard = false;
+      this.nearTypingBoard = false;
+      this.nearProjectorDock = false;
+      this.nearVendingMachine = false;
+      this.nearFridge = false;
+      this.nearCoffeeMaker = false;
+      this.nearDrinkStation = false;
+
+      // Round 6: Carry and interaction states
+      this.player.heldDrink = null;
+      this.player.isSipping = false;
+      this.player.sipTimer = 0;
+      this.isCoffeeBrewing = false;
+      this.coffeeBrewTimer = 0;
+      this.isProjectorDocked = false;
+
+      // Round 6: Modals open state
+      this.settingsModalOpen = false;
+      this.whiteboardModalOpen = false;
+      this.typingBoardModalOpen = false;
+      this.vendingModalOpen = false;
+      this.fridgeModalOpen = false;
+      this.drinkStationModalOpen = false;
+      this.projectorModalOpen = false;
+
+      // Round 6: Live board and presets caches
+      this.liveData.whiteboardStrokes = [];
+      this.liveData.typingBoardLines = [];
+      this.liveData.projectorPresenter = null;
+      this.liveData.drinkPresets = [];
+
       // Notifications
       this.notifications = [];
 
@@ -162,6 +195,16 @@
       this.setupMinimap();
       this.setupMobileControls();
 
+      // 7b. Setup Round 6 Modals & Controls
+      this.setupSettingsModal();
+      this.setupWhiteboardModal();
+      this.setupTypingBoardModal();
+      this.setupProjectorModal();
+      this.setupVendingModal();
+      this.setupFridgeModal();
+      this.setupDrinkStationModal();
+      this.setupCarryHUD();
+
       // 8. Start Game Loop
       this.lastTime = performance.now();
       requestAnimationFrame((t) => this.loop(t));
@@ -221,12 +264,21 @@
           this.setTargetZoom(this.camera.targetZoom * 0.87, this.camera.width / 2, this.camera.height / 2);
         } else if (e.key === 'n' || e.key === 'N') {
           this.toggleLightsSetting();
+        } else if (e.key === 'q' || e.key === 'Q') {
+          if (this.gameStarted) this.sipDrink();
         } else if (e.key === 'e' || e.key === 'E') {
           this.handleInteraction();
         } else if (e.key === 'Escape') {
           if (this.activeInspection) this.closeInspection();
           if (this.wardrobeOpen) this.toggleWardrobe(false);
           if (this.clockModalOpen) this.toggleClockModal(false);
+          if (this.settingsModalOpen) this.toggleSettingsModal(false);
+          if (this.whiteboardModalOpen) this.toggleWhiteboardModal(false);
+          if (this.typingBoardModalOpen) this.toggleTypingBoardModal(false);
+          if (this.vendingModalOpen) this.toggleVendingModal(false);
+          if (this.fridgeModalOpen) this.toggleFridgeModal(false);
+          if (this.drinkStationModalOpen) this.toggleDrinkStationModal(false);
+          if (this.projectorModalOpen) this.toggleProjectorModal(false);
         }
       });
 
@@ -402,6 +454,38 @@
         this.closeInspection();
         return;
       }
+      if (this.nearMeetingDoor) {
+        this.toggleMeetingDoor();
+        return;
+      }
+      if (this.nearWhiteboard) {
+        this.toggleWhiteboardModal();
+        return;
+      }
+      if (this.nearTypingBoard) {
+        this.toggleTypingBoardModal();
+        return;
+      }
+      if (this.nearProjectorDock) {
+        this.handleProjectorDock();
+        return;
+      }
+      if (this.nearCoffeeMaker) {
+        this.brewCoffee();
+        return;
+      }
+      if (this.nearDrinkStation) {
+        this.toggleDrinkStationModal();
+        return;
+      }
+      if (this.nearFridge) {
+        this.toggleFridgeModal();
+        return;
+      }
+      if (this.nearVendingMachine) {
+        this.toggleVendingModal();
+        return;
+      }
       if (this.nearBox) {
         this.inspectProject(this.nearBox.project);
         return;
@@ -517,7 +601,49 @@
       if (this.net) {
         this.net.update(dt);
         const dir = this.player.isMoving ? (this.player.facing >= 0 ? 'right' : 'left') : 'idle';
-        this.net.sendMove(this.player.x, this.player.y, dir, this.player.facing);
+        this.net.sendMove(this.player.x, this.player.y, dir, this.player.facing, this.player.heldDrink, this.player.isSipping);
+      }
+
+      // 3b. Coffee Brewing timer
+      if (this.isCoffeeBrewing) {
+        this.coffeeBrewTimer -= dt;
+        if (Math.random() < 0.35) {
+          this.spawnSteamBurst(4 * 32 + 16, 14 * 32);
+        }
+        if (this.coffeeBrewTimer <= 0) {
+          this.isCoffeeBrewing = false;
+          this.player.heldDrink = {
+            name: 'Fresh Espresso',
+            icon: '☕',
+            color: '#451A03',
+            source: 'coffee'
+          };
+          this.updateCarrySlotUI();
+          sfx.playChime();
+          this.showNotification('Fresh Espresso brewed! [Press Q to drink]');
+        }
+      }
+
+      // 3c. Projector auto-undock on walk away
+      if (this.isProjectorDocked) {
+        const dockDist = Math.hypot(this.player.x - (36.5 * 32), this.player.y - (19 * 32));
+        if (dockDist > 85) {
+          this.isProjectorDocked = false;
+          if (this.net) this.net.sendProjectorUndock();
+          this.showNotification('Walked away — projector undocked');
+        }
+      }
+
+      // 3d. Meeting room private voice chip check
+      const inMeeting = this.map.isInsideMeetingRoom(this.player.x, this.player.y);
+      const doorClosed = this.map.doors.meeting_room && this.map.doors.meeting_room.manualClose;
+      const privChip = document.getElementById('meetingPrivateChip');
+      if (privChip) {
+        if (inMeeting && doorClosed) {
+          privChip.classList.remove('hidden');
+        } else {
+          privChip.classList.add('hidden');
+        }
       }
 
       // 4. Doors update
@@ -541,9 +667,10 @@
       // 6. Particles update
       this.updateParticles(dt);
 
-      // 7. Check near Archive Box or Desk
+      // 7. Check near Archive Box, Desk, and Round 6 interactives
       this.updateNearBox();
       this.updateNearDesk();
+      this.updateNearInteractives();
 
       // 8. Notifications countdown
       for (let i = this.notifications.length - 1; i >= 0; i--) {
@@ -660,6 +787,19 @@
           this.spawnTrailParticle(p.x, p.y + 10, p.cosmetics.trail);
         }
       }
+
+      // Sipping consumption animation
+      if (p.isSipping) {
+        p.sipTimer -= dt;
+        if (p.sipTimer <= 0) {
+          p.isSipping = false;
+          const finishedName = p.heldDrink ? p.heldDrink.name : 'drink';
+          p.heldDrink = null;
+          this.updateCarrySlotUI();
+          this.showNotification(`Finished ${finishedName}! Refreshed.`);
+          sfx.playDrinkSip();
+        }
+      }
     }
 
     updateNearBox() {
@@ -689,6 +829,35 @@
       }
     }
 
+    updateNearInteractives() {
+      const px = this.player.x;
+      const py = this.player.y;
+
+      // 1. Meeting room door (34, 18)
+      this.nearMeetingDoor = Math.hypot(px - (34 * 32 + 16), py - (18 * 32 + 16)) < 48;
+
+      // 2. Whiteboard (around 35.5 * 32, 16.5 * 32)
+      this.nearWhiteboard = Math.hypot(px - (35.5 * 32), py - (16.5 * 32)) < 52;
+
+      // 3. Typing board (around 41.1 * 32, 16.5 * 32)
+      this.nearTypingBoard = Math.hypot(px - (41.1 * 32), py - (16.5 * 32)) < 52;
+
+      // 4. Projector dock (around 36.5 * 32, 19 * 32)
+      this.nearProjectorDock = Math.hypot(px - (36.5 * 32), py - (19 * 32)) < 52;
+
+      // 5. Break room coffee maker (4 * 32 + 16, 14 * 32 + 16)
+      this.nearCoffeeMaker = Math.hypot(px - (4 * 32 + 16), py - (14 * 32 + 16)) < 50;
+
+      // 6. Drink station (6 * 32 + 16, 14 * 32 + 16)
+      this.nearDrinkStation = Math.hypot(px - (6 * 32 + 16), py - (14 * 32 + 16)) < 50;
+
+      // 7. Break room fridge (2 * 32 + 16, 14 * 32 + 16)
+      this.nearFridge = Math.hypot(px - (2 * 32 + 16), py - (14 * 32 + 16)) < 50;
+
+      // 8. Break room vending machine (8 * 32 + 16, 14 * 32 + 16)
+      this.nearVendingMachine = Math.hypot(px - (8 * 32 + 16), py - (14 * 32 + 16)) < 50;
+    }
+
     spawnTrailParticle(x, y, type) {
       if (Math.random() < 0.3) {
         this.particles.push({
@@ -701,6 +870,22 @@
           scale: 1.0,
           life: 0.6,
           maxLife: 0.6
+        });
+      }
+    }
+
+    spawnSteamBurst(x, y) {
+      for (let i = 0; i < 4; i++) {
+        this.particles.push({
+          x: x + (Math.random() * 8 - 4),
+          y: y - 2,
+          vx: (Math.random() - 0.5) * 8,
+          vy: -15 - Math.random() * 10,
+          life: 1.4,
+          maxLife: 1.4,
+          type: 'steam',
+          scale: 1.0 + Math.random() * 0.5,
+          alpha: 0.7
         });
       }
     }
@@ -782,7 +967,9 @@
             face: remote.cosmetics.face,
             facing: remote.facing,
             isMoving: remote.isMoving,
+            heldDrink: remote.heldDrink,
             heldItem: remote.heldItem,
+            sipping: remote.isSipping,
             frame: remote.isMoving ? walkFrame : 0
           });
           renderer.renderNameTag(ctx, remote.x, remote.y, remote.name, '#FFFFFF');
@@ -796,7 +983,9 @@
         face: this.player.cosmetics.face,
         facing: this.player.facing,
         isMoving: this.player.isMoving,
+        heldDrink: this.player.heldDrink,
         heldItem: this.player.heldItem,
+        sipping: this.player.isSipping,
         frame: this.player.isMoving ? walkFrame : 0
       });
       renderer.renderNameTag(ctx, this.player.x, this.player.y, this.player.name, '#FFD166');
@@ -809,8 +998,26 @@
       // 5. Draw Particles
       this.renderParticles(ctx);
 
-      // 6. Draw Interactive Prompt for Archive Box or Front Desk
-      if (this.nearBox && !this.activeInspection) {
+      // 6. Draw Interactive Prompts
+      if (this.nearMeetingDoor && !this.activeInspection) {
+        const isClosed = this.map.doors.meeting_room && this.map.doors.meeting_room.manualClose;
+        this.renderGenericPrompt(ctx, 34 * 32 + 16, 18 * 32 + 16 - 22, isClosed ? '[E] Open Meeting Door' : '[E] Close Meeting Door', 'Press E to toggle');
+      } else if (this.nearWhiteboard && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 35.5 * 32, 16.5 * 32 - 20, '[E] Glass Whiteboard', 'Multiplayer drawing');
+      } else if (this.nearTypingBoard && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 41.1 * 32, 16.5 * 32 - 20, '[E] Shared Typing Board', 'Multiplayer ledger');
+      } else if (this.nearProjectorDock && !this.activeInspection) {
+        const isDocked = this.isProjectorDocked;
+        this.renderGenericPrompt(ctx, 36.5 * 32, 19 * 32 - 22, isDocked ? '[E] Projector Settings' : '[E] Dock to Projector', 'Screen share to room');
+      } else if (this.nearCoffeeMaker && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 4 * 32 + 16, 14 * 32 - 16, this.isCoffeeBrewing ? '☕ Brewing Espresso...' : '[E] Brew Fresh Espresso', 'Fresh roast coffee');
+      } else if (this.nearDrinkStation && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 6 * 32 + 16, 14 * 32 - 16, '[E] Artisan Drink Station', 'Custom recipes & presets');
+      } else if (this.nearFridge && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 2 * 32 + 16, 14 * 32 - 16, '[E] Break Room Fridge', 'Two-way container');
+      } else if (this.nearVendingMachine && !this.activeInspection) {
+        this.renderGenericPrompt(ctx, 8 * 32 + 16, 14 * 32 - 16, '[E] Vending Machine', 'Chilled canned drinks');
+      } else if (this.nearBox && !this.activeInspection) {
         this.renderInteractPrompt(ctx, this.nearBox);
       } else if (this.nearDesk && !this.activeInspection && this.agents && this.agents.c6) {
         this.renderDeskPrompt(ctx, this.agents.c6);
@@ -898,6 +1105,27 @@
       ctx.fillStyle = '#FFD166';
       ctx.textAlign = 'center';
       ctx.fillText(text, x, y + 3);
+      ctx.restore();
+    }
+
+    renderGenericPrompt(ctx, x, y, title, desc) {
+      ctx.save();
+      ctx.font = 'bold 10px "Segoe UI Rounded", "Nunito", sans-serif';
+      const tw = Math.max(ctx.measureText(title).width, desc ? ctx.measureText(desc).width : 0) + 16;
+      const h = desc ? 30 : 18;
+
+      ctx.fillStyle = '#22252A';
+      this.renderer.drawRoundedRect(ctx, x - tw / 2, y - 10, tw, h, 5, true, false);
+
+      ctx.fillStyle = '#FFD166';
+      ctx.textAlign = 'center';
+      ctx.fillText(title, x, y + 2);
+
+      if (desc) {
+        ctx.fillStyle = '#A0AEC0';
+        ctx.font = '8px "Segoe UI Rounded", sans-serif';
+        ctx.fillText(desc, x, y + 14);
+      }
       ctx.restore();
     }
 
@@ -1136,6 +1364,13 @@
       const lightsBtn = document.getElementById('lightsBtn');
       if (lightsBtn) {
         lightsBtn.innerText = this.lightsMode === 'office' ? '💡 LIGHTS: office' : '💡 LIGHTS: fullbright';
+      }
+      const settingLightsToggle = document.getElementById('settingLightsToggle');
+      if (settingLightsToggle) {
+        const isOffice = this.lightsMode === 'office';
+        settingLightsToggle.innerText = isOffice ? '💡 Office Atmosphere (Warm)' : '☀️ Full Brightness (Darkness Off)';
+        if (isOffice) settingLightsToggle.classList.remove('active');
+        else settingLightsToggle.classList.add('active');
       }
       const startLightsCheckbox = document.getElementById('startLightsCheckbox');
       if (startLightsCheckbox) {
@@ -1788,6 +2023,882 @@
 
       if (actionBtn) {
         actionBtn.addEventListener('touchstart', () => { this.handleInteraction(); }, { passive: true });
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Meeting Room Door & Private Voice
+    // -------------------------------------------------------------------------
+    toggleMeetingDoor() {
+      const isClosed = this.map.doors.meeting_room ? this.map.doors.meeting_room.manualClose : false;
+      const next = !isClosed;
+      if (this.map.doors.meeting_room) {
+        this.map.doors.meeting_room.manualClose = next;
+        this.map.doors.meeting_room.state = next ? 'closed' : 'open';
+      }
+      this.liveData.meetingDoorClosed = next;
+      if (this.net) {
+        this.net.sendMeetingDoor(next);
+      }
+      sfx.playDoorCreak();
+      this.showNotification(next ? 'Meeting door CLOSED (Voice is private 🔇)' : 'Meeting door OPEN');
+    }
+
+    setMeetingDoorState(closed, fromRemote) {
+      if (this.map.doors.meeting_room) {
+        this.map.doors.meeting_room.manualClose = closed;
+        this.map.doors.meeting_room.state = closed ? 'closed' : 'open';
+      }
+      this.liveData.meetingDoorClosed = closed;
+      if (fromRemote) {
+        sfx.playDoorCreak();
+        this.showNotification(closed ? 'Colleague closed meeting room door (Private voice 🔇)' : 'Colleague opened meeting room door');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Carry HUD & Drinking
+    // -------------------------------------------------------------------------
+    setupCarryHUD() {
+      const drinkBtn = document.getElementById('drinkActionBtn');
+      if (drinkBtn) {
+        drinkBtn.addEventListener('click', () => this.sipDrink());
+      }
+    }
+
+    sipDrink() {
+      if (!this.player.heldDrink || this.player.isSipping) return;
+      this.player.isSipping = true;
+      this.player.sipTimer = 1.0;
+      sfx.playDrinkSip();
+      this.showNotification(`Sipping ${this.player.heldDrink.name}...`);
+    }
+
+    updateCarrySlotUI() {
+      const pill = document.getElementById('carrySlotPill');
+      const icon = document.getElementById('carryItemIcon');
+      const text = document.getElementById('carryItemText');
+      if (!pill) return;
+      if (this.player.heldDrink) {
+        pill.classList.remove('hidden');
+        if (icon) icon.innerText = this.player.heldDrink.icon || '🥤';
+        if (text) text.innerText = this.player.heldDrink.name || 'Drink';
+      } else {
+        pill.classList.add('hidden');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Settings Modal (Consolidated Rarely-Used Toggles)
+    // -------------------------------------------------------------------------
+    setupSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      const closeBtn = document.getElementById('closeSettingsBtn');
+      const settingsBtn = document.getElementById('settingsBtn');
+      const lightsBtn = document.getElementById('settingLightsToggle');
+      const monitorBtn = document.getElementById('settingMonitorToggle');
+      const musicBtn = document.getElementById('settingMusicToggle');
+      const soundBtn = document.getElementById('settingSoundToggle');
+
+      const zoomOverview = document.getElementById('zoomOverviewBtn');
+      const zoomDefault = document.getElementById('zoomDefaultBtn');
+      const zoomCloseup = document.getElementById('zoomCloseupBtn');
+
+      if (settingsBtn) settingsBtn.addEventListener('click', () => this.toggleSettingsModal());
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleSettingsModal(false));
+
+      const updateSettingsUI = () => {
+        if (lightsBtn) {
+          const isOffice = this.lightsMode === 'office';
+          lightsBtn.innerText = isOffice ? '💡 Office Atmosphere (Warm)' : '☀️ Full Brightness (No Fog)';
+          if (isOffice) lightsBtn.classList.remove('active');
+          else lightsBtn.classList.add('active');
+        }
+        if (monitorBtn && this.voice) {
+          monitorBtn.innerText = this.voice.selfMonitor ? '🎧 Self-Monitor: ON' : '🎧 Self-Monitor: OFF';
+          if (this.voice.selfMonitor) monitorBtn.classList.add('active');
+          else monitorBtn.classList.remove('active');
+        }
+        if (musicBtn) {
+          const isPlaying = !sfx.isMusicMuted;
+          musicBtn.innerText = isPlaying ? '🎵 Music: Playing [M]' : '🔇 Music: Muted [M]';
+          if (isPlaying) musicBtn.classList.add('active');
+          else musicBtn.classList.remove('active');
+        }
+        if (soundBtn) {
+          const isMuted = sfx.isMuted;
+          soundBtn.innerText = isMuted ? '🔇 Sound FX: Muted' : '🔊 Sound FX: Enabled';
+          if (!isMuted) soundBtn.classList.add('active');
+          else soundBtn.classList.remove('active');
+        }
+      };
+
+      if (lightsBtn) {
+        lightsBtn.addEventListener('click', () => {
+          this.toggleLightsSetting();
+          updateSettingsUI();
+        });
+      }
+
+      if (monitorBtn) {
+        monitorBtn.addEventListener('click', () => {
+          if (this.voice) {
+            this.voice.selfMonitor = !this.voice.selfMonitor;
+            this.showNotification(`Voice self-monitor: ${this.voice.selfMonitor ? 'ON' : 'OFF'}`);
+            updateSettingsUI();
+          }
+        });
+      }
+
+      if (musicBtn) {
+        musicBtn.addEventListener('click', () => {
+          const muted = sfx.toggleMusic();
+          this.updateMusicButton(muted);
+          this.showNotification(muted ? 'Background Music: Off (M)' : 'Background Music: On (M)');
+          updateSettingsUI();
+        });
+      }
+
+      if (soundBtn) {
+        soundBtn.addEventListener('click', () => {
+          const muted = sfx.toggleMute();
+          this.updateMuteButton(muted);
+          this.showNotification(muted ? 'Sound FX: Muted' : 'Sound FX: Enabled');
+          updateSettingsUI();
+        });
+      }
+
+      const zoomBtns = [zoomOverview, zoomDefault, zoomCloseup];
+      if (zoomOverview) {
+        zoomOverview.addEventListener('click', () => {
+          this.setTargetZoom(0.6);
+          zoomBtns.forEach((b) => b && b.classList.remove('active'));
+          zoomOverview.classList.add('active');
+        });
+      }
+      if (zoomDefault) {
+        zoomDefault.addEventListener('click', () => {
+          this.setTargetZoom(1.0);
+          zoomBtns.forEach((b) => b && b.classList.remove('active'));
+          zoomDefault.classList.add('active');
+        });
+      }
+      if (zoomCloseup) {
+        zoomCloseup.addEventListener('click', () => {
+          this.setTargetZoom(1.4);
+          zoomBtns.forEach((b) => b && b.classList.remove('active'));
+          zoomCloseup.classList.add('active');
+        });
+      }
+
+      this.updateSettingsUI = updateSettingsUI;
+    }
+
+    toggleSettingsModal(force) {
+      const modal = document.getElementById('settingsModal');
+      if (!modal) return;
+      this.settingsModalOpen = force !== undefined ? force : !this.settingsModalOpen;
+      if (this.settingsModalOpen) {
+        modal.classList.remove('hidden');
+        if (this.updateSettingsUI) this.updateSettingsUI();
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Whiteboard Modal
+    // -------------------------------------------------------------------------
+    setupWhiteboardModal() {
+      const modal = document.getElementById('whiteboardModal');
+      const closeBtn = document.getElementById('closeWhiteboardBtn');
+      const canvas = document.getElementById('whiteboardCanvas');
+      const clearBtn = document.getElementById('wbClearBtn');
+      const eraserBtn = document.getElementById('wbEraserBtn');
+      const colorBtns = document.querySelectorAll('.wb-color-btn');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleWhiteboardModal(false));
+
+      let activeColor = '#1E293B';
+      let isEraser = false;
+
+      colorBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          colorBtns.forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          activeColor = btn.dataset.color || '#1E293B';
+          isEraser = false;
+          if (eraserBtn) eraserBtn.classList.remove('active');
+          sfx.playUiTick();
+        });
+      });
+
+      if (eraserBtn) {
+        eraserBtn.addEventListener('click', () => {
+          isEraser = !isEraser;
+          if (isEraser) {
+            eraserBtn.classList.add('active');
+            colorBtns.forEach((b) => b.classList.remove('selected'));
+          } else {
+            eraserBtn.classList.remove('active');
+          }
+          sfx.playUiTick();
+        });
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          this.clearWhiteboard();
+          if (this.net) this.net.sendWhiteboardClear();
+        });
+      }
+
+      if (canvas) {
+        let isDrawing = false;
+        let currentStroke = null;
+
+        const getCoords = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          return {
+            x: Math.round(((clientX - rect.left) / rect.width) * canvas.width),
+            y: Math.round(((clientY - rect.top) / rect.height) * canvas.height)
+          };
+        };
+
+        const startDraw = (e) => {
+          isDrawing = true;
+          const pt = getCoords(e);
+          currentStroke = {
+            color: isEraser ? '#FFFFFF' : activeColor,
+            width: isEraser ? 16 : 3,
+            points: [pt]
+          };
+        };
+
+        const moveDraw = (e) => {
+          if (!isDrawing || !currentStroke) return;
+          const pt = getCoords(e);
+          const pts = currentStroke.points;
+          const last = pts[pts.length - 1];
+          if (Math.hypot(pt.x - last.x, pt.y - last.y) < 3) return;
+          pts.push(pt);
+
+          // Draw segment directly on canvas
+          const ctx = canvas.getContext('2d');
+          ctx.strokeStyle = currentStroke.color;
+          ctx.lineWidth = currentStroke.width;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(last.x, last.y);
+          ctx.lineTo(pt.x, pt.y);
+          ctx.stroke();
+        };
+
+        const endDraw = () => {
+          if (!isDrawing) return;
+          isDrawing = false;
+          if (currentStroke && currentStroke.points.length > 1) {
+            if (!this.liveData.whiteboardStrokes) this.liveData.whiteboardStrokes = [];
+            this.liveData.whiteboardStrokes.push(currentStroke);
+            if (this.liveData.whiteboardStrokes.length > 500) {
+              this.liveData.whiteboardStrokes.shift();
+            }
+            if (this.net) this.net.sendWhiteboardStroke(currentStroke);
+          }
+          currentStroke = null;
+        };
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', moveDraw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mouseleave', endDraw);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); moveDraw(e); }, { passive: false });
+        canvas.addEventListener('touchend', endDraw);
+      }
+    }
+
+    toggleWhiteboardModal(force) {
+      const modal = document.getElementById('whiteboardModal');
+      if (!modal) return;
+      this.whiteboardModalOpen = force !== undefined ? force : !this.whiteboardModalOpen;
+      if (this.whiteboardModalOpen) {
+        modal.classList.remove('hidden');
+        this.redrawWhiteboardCanvas();
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    setWhiteboardStrokes(strokes) {
+      this.liveData.whiteboardStrokes = Array.isArray(strokes) ? strokes : [];
+      if (this.whiteboardModalOpen) this.redrawWhiteboardCanvas();
+    }
+
+    addWhiteboardStroke(stroke) {
+      if (!this.liveData.whiteboardStrokes) this.liveData.whiteboardStrokes = [];
+      this.liveData.whiteboardStrokes.push(stroke);
+      if (this.liveData.whiteboardStrokes.length > 500) {
+        this.liveData.whiteboardStrokes.shift();
+      }
+      if (this.whiteboardModalOpen) {
+        const canvas = document.getElementById('whiteboardCanvas');
+        if (canvas && stroke.points && stroke.points.length > 1) {
+          const ctx = canvas.getContext('2d');
+          ctx.strokeStyle = stroke.color || '#1E293B';
+          ctx.lineWidth = stroke.width || 3;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          for (let i = 1; i < stroke.points.length; i++) {
+            ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    clearWhiteboard() {
+      this.liveData.whiteboardStrokes = [];
+      const canvas = document.getElementById('whiteboardCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      sfx.playUiTick();
+      this.showNotification('Whiteboard cleared');
+    }
+
+    redrawWhiteboardCanvas() {
+      const canvas = document.getElementById('whiteboardCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const strokes = this.liveData.whiteboardStrokes || [];
+      for (const strk of strokes) {
+        if (!strk.points || strk.points.length < 2) continue;
+        ctx.strokeStyle = strk.color || '#1E293B';
+        ctx.lineWidth = strk.width || 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(strk.points[0].x, strk.points[0].y);
+        for (let i = 1; i < strk.points.length; i++) {
+          ctx.lineTo(strk.points[i].x, strk.points[i].y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Typing Board Modal
+    // -------------------------------------------------------------------------
+    setupTypingBoardModal() {
+      const modal = document.getElementById('typingBoardModal');
+      const closeBtn = document.getElementById('closeTypingBoardBtn');
+      const input = document.getElementById('typingBoardInput');
+      const sendBtn = document.getElementById('typingBoardSendBtn');
+      const clearBtn = document.getElementById('typingBoardClearBtn');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleTypingBoardModal(false));
+
+      const sendLine = () => {
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        if (this.net) {
+          this.net.sendTypingBoardInput({
+            action: 'append',
+            text: text,
+            author: this.player.name
+          });
+        }
+        sfx.playUiTick();
+      };
+
+      if (sendBtn) sendBtn.addEventListener('click', sendLine);
+      if (input) {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            sendLine();
+          }
+        });
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          if (this.net) {
+            this.net.sendTypingBoardInput({ action: 'clear' });
+          }
+          sfx.playUiTick();
+        });
+      }
+    }
+
+    toggleTypingBoardModal(force) {
+      const modal = document.getElementById('typingBoardModal');
+      if (!modal) return;
+      this.typingBoardModalOpen = force !== undefined ? force : !this.typingBoardModalOpen;
+      if (this.typingBoardModalOpen) {
+        modal.classList.remove('hidden');
+        this.renderTypingBoardLines();
+        const input = document.getElementById('typingBoardInput');
+        if (input) setTimeout(() => input.focus(), 50);
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    setTypingBoardLines(lines) {
+      this.liveData.typingBoardLines = Array.isArray(lines) ? lines : [];
+      if (this.typingBoardModalOpen) {
+        this.renderTypingBoardLines();
+      }
+    }
+
+    renderTypingBoardLines() {
+      const ledger = document.getElementById('typingBoardLedger');
+      if (!ledger) return;
+      ledger.innerHTML = '';
+      const lines = this.liveData.typingBoardLines || [];
+      if (lines.length === 0) {
+        ledger.innerHTML = '<div style="color: #64748B; font-style: italic; padding: 8px;">No ledger entries yet. Type below to append...</div>';
+        return;
+      }
+      for (const item of lines) {
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'typing-ledger-line';
+        const d = new Date(item.time || Date.now());
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        lineDiv.innerHTML = `<span class="typing-line-time">${timeStr}</span> <span class="typing-line-author">${item.author || 'Anon'}:</span> <span class="typing-line-text">${item.text || ''}</span>`;
+        ledger.appendChild(lineDiv);
+      }
+      ledger.scrollTop = ledger.scrollHeight;
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Projector Screen Dock Modal
+    // -------------------------------------------------------------------------
+    setupProjectorModal() {
+      const modal = document.getElementById('projectorModal');
+      const closeBtn = document.getElementById('closeProjectorBtn');
+      const undockBtn = document.getElementById('undockBtn');
+      const updateTopicBtn = document.getElementById('updateTopicBtn');
+      const topicInput = document.getElementById('presenterTopicInput');
+      const chips = document.querySelectorAll('.topic-chip');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleProjectorModal(false));
+
+      if (undockBtn) {
+        undockBtn.addEventListener('click', () => {
+          this.isProjectorDocked = false;
+          if (this.net) this.net.sendProjectorUndock();
+          this.showNotification('Undocked from projector');
+          this.toggleProjectorModal(false);
+        });
+      }
+
+      if (updateTopicBtn && topicInput) {
+        updateTopicBtn.addEventListener('click', () => {
+          const topic = topicInput.value.trim() || 'Architecture Review';
+          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: topic });
+          this.showNotification(`Projector presentation updated: "${topic}"`);
+          this.toggleProjectorModal(false);
+        });
+      }
+
+      chips.forEach((c) => {
+        c.addEventListener('click', () => {
+          if (topicInput) topicInput.value = c.dataset.topic || '';
+          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: c.dataset.topic });
+          this.showNotification(`Projector presentation updated: "${c.dataset.topic}"`);
+          this.toggleProjectorModal(false);
+        });
+      });
+    }
+
+    handleProjectorDock() {
+      const pres = this.liveData.projectorPresenter;
+      if (pres && this.net && pres.id !== this.net.myId) {
+        this.showNotification(`Projector is busy (${pres.name} is currently presenting)`);
+        sfx.playUiTick();
+        return;
+      }
+      if (this.isProjectorDocked) {
+        this.toggleProjectorModal(true);
+        return;
+      }
+      this.isProjectorDocked = true;
+      if (this.net) this.net.sendProjectorDock({ topic: 'Live Architecture Review' });
+      this.showNotification('Docked to projector! Screen shared to meeting room.');
+      sfx.playChime();
+      this.toggleProjectorModal(true);
+    }
+
+    toggleProjectorModal(force) {
+      const modal = document.getElementById('projectorModal');
+      if (!modal) return;
+      this.projectorModalOpen = force !== undefined ? force : !this.projectorModalOpen;
+      if (this.projectorModalOpen) {
+        modal.classList.remove('hidden');
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    setProjectorPresenter(presenter) {
+      this.liveData.projectorPresenter = presenter;
+      if (!presenter && this.isProjectorDocked) {
+        this.isProjectorDocked = false;
+      }
+    }
+
+    handleProjectorBusy(msg) {
+      this.isProjectorDocked = false;
+      this.showNotification(msg.reason || 'Projector is currently busy');
+      sfx.playUiTick();
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Vending Machine Modal
+    // -------------------------------------------------------------------------
+    setupVendingModal() {
+      const modal = document.getElementById('vendingModal');
+      const closeBtn = document.getElementById('closeVendingBtn');
+      const items = document.querySelectorAll('.vending-item');
+      const statusBox = document.getElementById('vendingAnimStatus');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleVendingModal(false));
+
+      items.forEach((itemEl) => {
+        const btn = itemEl.querySelector('.dispense-btn');
+        if (btn) {
+          btn.addEventListener('click', () => {
+            const drinkName = itemEl.dataset.drink;
+            const drinkColor = itemEl.dataset.color;
+            const drinkIcon = itemEl.dataset.icon;
+            if (statusBox) statusBox.classList.remove('hidden');
+            sfx.playCoin();
+            setTimeout(() => {
+              if (statusBox) statusBox.classList.add('hidden');
+              this.player.heldDrink = {
+                name: drinkName,
+                color: drinkColor,
+                icon: drinkIcon,
+                source: 'vending'
+              };
+              this.updateCarrySlotUI();
+              sfx.playChime();
+              this.showNotification(`Dispensed ${drinkName}! [Press Q to drink]`);
+              this.toggleVendingModal(false);
+            }, 650);
+          });
+        }
+      });
+    }
+
+    toggleVendingModal(force) {
+      const modal = document.getElementById('vendingModal');
+      if (!modal) return;
+      this.vendingModalOpen = force !== undefined ? force : !this.vendingModalOpen;
+      if (this.vendingModalOpen) {
+        modal.classList.remove('hidden');
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Fridge Modal (Two-Way Container)
+    // -------------------------------------------------------------------------
+    setupFridgeModal() {
+      const modal = document.getElementById('fridgeModal');
+      const closeBtn = document.getElementById('closeFridgeBtn');
+      const slots = document.querySelectorAll('.fridge-item-slot');
+      const retBtn = document.getElementById('fridgeReturnBtn');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleFridgeModal(false));
+
+      slots.forEach((slot) => {
+        const takeBtn = slot.querySelector('.fridge-take-btn');
+        if (takeBtn) {
+          takeBtn.addEventListener('click', () => {
+            const name = slot.dataset.drink;
+            const color = slot.dataset.color;
+            const icon = slot.dataset.icon;
+            this.player.heldDrink = {
+              name,
+              color,
+              icon,
+              source: 'fridge'
+            };
+            this.updateCarrySlotUI();
+            sfx.playChime();
+            this.showNotification(`Grabbed chilled ${name} from fridge! [Press Q to drink]`);
+            this.toggleFridgeModal(false);
+          });
+        }
+      });
+
+      if (retBtn) {
+        retBtn.addEventListener('click', () => {
+          if (!this.player.heldDrink) return;
+          const retName = this.player.heldDrink.name;
+          this.player.heldDrink = null;
+          this.updateCarrySlotUI();
+          sfx.playUiTick();
+          this.showNotification(`Returned ${retName} to fridge.`);
+          this.toggleFridgeModal(false);
+        });
+      }
+    }
+
+    toggleFridgeModal(force) {
+      const modal = document.getElementById('fridgeModal');
+      if (!modal) return;
+      this.fridgeModalOpen = force !== undefined ? force : !this.fridgeModalOpen;
+      if (this.fridgeModalOpen) {
+        modal.classList.remove('hidden');
+        const retBox = document.getElementById('fridgeReturnSection');
+        const heldName = document.getElementById('fridgeHeldItemName');
+        if (retBox) {
+          if (this.player.heldDrink) {
+            retBox.classList.remove('hidden');
+            if (heldName) heldName.innerText = this.player.heldDrink.name;
+          } else {
+            retBox.classList.add('hidden');
+          }
+        }
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Coffee Maker Action
+    // -------------------------------------------------------------------------
+    setupCoffeeMaker() {}
+
+    brewCoffee() {
+      if (this.isCoffeeBrewing) return;
+      this.isCoffeeBrewing = true;
+      this.coffeeBrewTimer = 2.0;
+      this.showNotification('Brewing fresh espresso... ☕');
+      sfx.playCoffeeGurgle();
+      this.spawnSteamBurst(4 * 32 + 16, 14 * 32);
+    }
+
+    // -------------------------------------------------------------------------
+    // Round 6: Artisan Drink Station & Presets
+    // -------------------------------------------------------------------------
+    setupDrinkStationModal() {
+      const modal = document.getElementById('drinkStationModal');
+      const closeBtn = document.getElementById('closeDrinkStationBtn');
+      const brewBtn = document.getElementById('stationBrewBtn');
+      const saveBtn = document.getElementById('savePresetBtn');
+      const nameInput = document.getElementById('presetNameInput');
+      const baseBtns = document.querySelectorAll('.station-opt-btn');
+
+      if (closeBtn) closeBtn.addEventListener('click', () => this.toggleDrinkStationModal(false));
+
+      let selectedBase = { id: 'coffee', name: 'Coffee', color: '#78350F', icon: '☕' };
+
+      baseBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          baseBtns.forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedBase = {
+            id: btn.dataset.base,
+            name: btn.innerText,
+            color: btn.dataset.color || '#78350F',
+            icon: btn.dataset.icon || '☕'
+          };
+          sfx.playUiTick();
+        });
+      });
+
+      const getCheckedAddins = () => {
+        const checkboxes = document.querySelectorAll('#drinkAddinOptions input[type="checkbox"]:checked');
+        return Array.from(checkboxes).map((cb) => cb.value);
+      };
+
+      if (brewBtn) {
+        brewBtn.addEventListener('click', () => {
+          const indicator = document.getElementById('stationBrewingIndicator');
+          if (indicator) indicator.classList.remove('hidden');
+          brewBtn.disabled = true;
+          sfx.playCoffeeGurgle();
+
+          setTimeout(() => {
+            if (indicator) indicator.classList.add('hidden');
+            brewBtn.disabled = false;
+            const addins = getCheckedAddins();
+            const displayName = addins.length ? `${selectedBase.name} + ${addins.join(', ')}` : selectedBase.name;
+            this.player.heldDrink = {
+              name: displayName,
+              color: selectedBase.color,
+              icon: selectedBase.icon,
+              source: 'station'
+            };
+            this.updateCarrySlotUI();
+            sfx.playChime();
+            this.showNotification(`Brewed custom ${displayName}! [Press Q to drink]`);
+            this.toggleDrinkStationModal(false);
+          }, 800);
+        });
+      }
+
+      if (saveBtn && nameInput) {
+        saveBtn.addEventListener('click', async () => {
+          const name = nameInput.value.trim();
+          if (!name) {
+            this.showNotification('Please enter a preset name');
+            return;
+          }
+          if (!this.liveData.drinkPresets) this.liveData.drinkPresets = [];
+          if (this.liveData.drinkPresets.length >= 4) {
+            this.showNotification('Max 4 presets allowed. Delete one first!');
+            return;
+          }
+
+          const newPreset = {
+            name: name,
+            base: selectedBase.id,
+            addins: getCheckedAddins()
+          };
+
+          this.liveData.drinkPresets.push(newPreset);
+          nameInput.value = '';
+          await this.saveDrinkPresets(this.liveData.drinkPresets);
+          this.renderDrinkPresetsList();
+          this.showNotification(`Saved drink preset "${name}"!`);
+          sfx.playChime();
+        });
+      }
+    }
+
+    async loadDrinkPresets() {
+      try {
+        const resp = await fetch(`/api/office/drink-presets?profile=${this.player.profile || 'nathan'}`);
+        const data = await resp.json();
+        if (data && Array.isArray(data.presets)) {
+          this.liveData.drinkPresets = data.presets;
+        }
+      } catch (err) {
+        console.warn('Failed to load drink presets:', err);
+      }
+      this.renderDrinkPresetsList();
+    }
+
+    async saveDrinkPresets(presets) {
+      try {
+        await fetch('/api/office/drink-presets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile: this.player.profile || 'nathan',
+            presets: presets
+          })
+        });
+      } catch (err) {
+        console.warn('Failed to save drink presets:', err);
+      }
+    }
+
+    renderDrinkPresetsList() {
+      const container = document.getElementById('presetsListContainer');
+      if (!container) return;
+      container.innerHTML = '';
+      const presets = this.liveData.drinkPresets || [];
+
+      if (presets.length === 0) {
+        container.innerHTML = '<div style="color: #64748B; font-size: 10px; font-style: italic; padding: 4px;">No saved presets yet</div>';
+        return;
+      }
+
+      presets.forEach((pr, idx) => {
+        const item = document.createElement('div');
+        item.className = 'preset-item';
+        const addinSummary = (pr.addins && pr.addins.length) ? ` (${pr.addins.join(',')})` : '';
+        item.innerHTML = `
+          <div class="preset-item-name" title="${pr.name}${addinSummary}">${pr.name}</div>
+          <div class="preset-item-actions">
+            <button class="preset-load-btn" data-idx="${idx}">Load & Brew</button>
+            <button class="preset-del-btn" data-idx="${idx}">✕</button>
+          </div>
+        `;
+
+        item.querySelector('.preset-load-btn').addEventListener('click', () => {
+          // Select base
+          const baseBtns = document.querySelectorAll('.station-opt-btn');
+          baseBtns.forEach((b) => {
+            if (b.dataset.base === pr.base) b.classList.add('selected');
+            else b.classList.remove('selected');
+          });
+          // Set addins
+          const checkboxes = document.querySelectorAll('#drinkAddinOptions input[type="checkbox"]');
+          const set = new Set(pr.addins || []);
+          checkboxes.forEach((cb) => { cb.checked = set.has(cb.value); });
+
+          // Fast load & brew
+          const baseBtn = document.querySelector(`.station-opt-btn[data-base="${pr.base}"]`);
+          const icon = baseBtn ? baseBtn.dataset.icon : '☕';
+          const color = baseBtn ? baseBtn.dataset.color : '#78350F';
+          this.player.heldDrink = {
+            name: pr.name,
+            icon: icon,
+            color: color,
+            source: 'station'
+          };
+          this.updateCarrySlotUI();
+          sfx.playChime();
+          this.showNotification(`Brewed saved preset "${pr.name}"! [Press Q to drink]`);
+          this.toggleDrinkStationModal(false);
+        });
+
+        item.querySelector('.preset-del-btn').addEventListener('click', async () => {
+          presets.splice(idx, 1);
+          await this.saveDrinkPresets(presets);
+          this.renderDrinkPresetsList();
+          sfx.playUiTick();
+        });
+
+        container.appendChild(item);
+      });
+    }
+
+    toggleDrinkStationModal(force) {
+      const modal = document.getElementById('drinkStationModal');
+      if (!modal) return;
+      this.drinkStationModalOpen = force !== undefined ? force : !this.drinkStationModalOpen;
+      if (this.drinkStationModalOpen) {
+        modal.classList.remove('hidden');
+        this.loadDrinkPresets();
+        sfx.playUiTick();
+      } else {
+        modal.classList.add('hidden');
+        sfx.playUiTick();
       }
     }
   }

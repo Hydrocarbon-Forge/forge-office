@@ -33,6 +33,13 @@ function runReachabilityTest() {
   }
   console.log(`PASS: All ${waypoints.length} waypoints reachable.`);
 
+  // 2b. Assert meeting room door and waypoints are present
+  assert(map.doors.some(d => d.name === 'meeting_room'), 'Meeting room door must exist');
+  assert(map.waypoints['meeting_room'], 'meeting_room waypoint must exist');
+  assert(map.waypoints['meeting_table'], 'meeting_table waypoint must exist');
+  assert(map.waypoints['meeting_dock'], 'meeting_dock waypoint must exist');
+  console.log('PASS: Meeting room door and waypoints explicitly verified.');
+
   // 3. Check C6 Desk front
   const c6Front = { x: 21 * 32 + 16, y: 14 * 32 + 16 };
   const c6Path = map.findPath(spawn.x, spawn.y, c6Front.x, c6Front.y);

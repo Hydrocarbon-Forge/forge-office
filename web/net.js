@@ -71,7 +71,7 @@
       }
     }
 
-    sendMove(x, y, dir, facing) {
+    sendMove(x, y, dir, facing, heldDrink = null, sipping = false) {
       const now = performance.now();
       if (now - this.lastMoveSendTime < this.moveSendInterval) return;
       this.lastMoveSendTime = now;
@@ -81,7 +81,9 @@
         x: Math.round(x),
         y: Math.round(y),
         dir: dir,
-        facing: facing
+        facing: facing,
+        heldDrink: heldDrink,
+        sipping: !!sipping
       });
     }
 
@@ -121,6 +123,34 @@
       });
     }
 
+    sendMeetingDoor(closed) {
+      this.send({ type: 'meeting-door', closed: !!closed });
+    }
+
+    sendWhiteboardStroke(stroke) {
+      this.send({ type: 'whiteboard-stroke', stroke });
+    }
+
+    sendWhiteboardClear() {
+      this.send({ type: 'whiteboard-clear' });
+    }
+
+    sendTypingBoardInput(data) {
+      this.send({ type: 'typing-board-input', ...data });
+    }
+
+    sendProjectorDock(action) {
+      this.send({ type: 'projector-dock', action });
+    }
+
+    sendProjectorUndock() {
+      this.send({ type: 'projector-undock' });
+    }
+
+    sendProjectorAction(action) {
+      this.send({ type: 'projector-action', action });
+    }
+
     handleMessage(msg) {
       if ((msg.t === 'va' || msg.type === 'va') && this.game.voice) {
         this.game.voice.handleVoicePacket(msg);
@@ -137,6 +167,18 @@
             for (const p of msg.players) {
               this.addRemotePlayer(p);
             }
+          }
+          if (msg.meetingDoorClosed !== undefined && this.game.setMeetingDoorState) {
+            this.game.setMeetingDoorState(msg.meetingDoorClosed, false);
+          }
+          if (Array.isArray(msg.whiteboardStrokes) && this.game.setWhiteboardStrokes) {
+            this.game.setWhiteboardStrokes(msg.whiteboardStrokes);
+          }
+          if (Array.isArray(msg.typingBoardLines) && this.game.setTypingBoardLines) {
+            this.game.setTypingBoardLines(msg.typingBoardLines);
+          }
+          if (msg.projectorPresenter !== undefined && this.game.setProjectorPresenter) {
+            this.game.setProjectorPresenter(msg.projectorPresenter);
           }
           break;
         }
@@ -161,6 +203,8 @@
             remote.dir = msg.dir;
             remote.facing = msg.facing !== undefined ? msg.facing : remote.facing;
             remote.isMoving = msg.dir !== 'idle';
+            if (msg.heldDrink !== undefined) remote.heldDrink = msg.heldDrink;
+            if (msg.sipping !== undefined) remote.isSipping = msg.sipping;
           }
           break;
         }
@@ -177,6 +221,48 @@
           const remote = this.remotePlayers.get(msg.id);
           if (remote && msg.name) {
             remote.name = msg.name;
+          }
+          break;
+        }
+
+        case 'meeting-door': {
+          if (this.game.setMeetingDoorState) {
+            this.game.setMeetingDoorState(msg.closed, true);
+          }
+          break;
+        }
+
+        case 'whiteboard-stroke': {
+          if (this.game.addWhiteboardStroke) {
+            this.game.addWhiteboardStroke(msg.stroke);
+          }
+          break;
+        }
+
+        case 'whiteboard-clear': {
+          if (this.game.clearWhiteboard) {
+            this.game.clearWhiteboard();
+          }
+          break;
+        }
+
+        case 'typing-board-sync': {
+          if (this.game.setTypingBoardLines) {
+            this.game.setTypingBoardLines(msg.lines);
+          }
+          break;
+        }
+
+        case 'projector-update': {
+          if (this.game.setProjectorPresenter) {
+            this.game.setProjectorPresenter(msg.presenter);
+          }
+          break;
+        }
+
+        case 'projector-busy': {
+          if (this.game.handleProjectorBusy) {
+            this.game.handleProjectorBusy(msg.dockedBy);
           }
           break;
         }

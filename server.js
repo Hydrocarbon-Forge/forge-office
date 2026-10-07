@@ -77,6 +77,32 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  // Drink presets endpoints
+  if (pathname === '/api/office/drink-presets') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const saved = clockManager.saveDrinkPresets(parsed.profile, parsed.presets);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, presets: saved }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Invalid JSON' }));
+        }
+      });
+      return;
+    } else {
+      const prof = (parsedUrl.searchParams.get('profile') || 'nathan').toLowerCase();
+      const presets = (clockManager.profilesData[prof] && clockManager.profilesData[prof].drinkPresets) || [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, presets }));
+      return;
+    }
+  }
+
   // 2. Proxy /api/* -> http://127.0.0.1:8903/api/*
   if (pathname.startsWith('/api/')) {
     const proxyReq = http.request(
@@ -91,14 +117,18 @@ const server = http.createServer((req, res) => {
         }
       },
       (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res);
+        if (!res.headersSent) {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        }
       }
     );
 
     proxyReq.on('error', (err) => {
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: 'Console API offline', detail: err.message }));
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Console API offline', detail: err.message }));
+      }
     });
 
     req.pipe(proxyReq);
@@ -150,6 +180,23 @@ const server = http.createServer((req, res) => {
 // Hand-rolled WebSocket Implementation (RFC 6455)
 // ---------------------------------------------------------------------------
 const clients = new Map(); // id -> ClientState
+
+// Meeting room & interactive station state (synced over WS)
+let meetingDoorClosed = false;
+let whiteboardStrokes = []; // Array of { points: [{x, y}], color: string, width: number }
+let typingBoardLines = [
+  'Hydrocarbon Forge Agenda',
+  '1. Architecture review',
+  '2. Sprint deliverables',
+  '3. Open discussion'
+];
+let projectorDockedPlayer = null; // { id, name, room, action, time }
+
+function isInMeetingRoom(x, y) {
+  const tx = Math.floor(x / 32);
+  const ty = Math.floor(y / 32);
+  return tx >= 34 && tx <= 42 && ty >= 15 && ty <= 22;
+}
 
 function makeFrame(payloadStr, opcode = 0x01) {
   const payloadBuf = Buffer.from(payloadStr, 'utf8');
@@ -345,6 +392,10 @@ server.on('upgrade', (req, socket, head) => {
   const cleanup = () => {
     if (clients.has(clientId)) {
       clients.delete(clientId);
+      if (projectorDockedPlayer && projectorDockedPlayer.id === clientId) {
+        projectorDockedPlayer = null;
+        broadcast({ type: 'projector-update', presenter: null });
+      }
       if (client.joined) {
         if (client.profile && client.profile !== 'guest') {
           clockManager.clockOut(client.profile, clientId);
@@ -427,7 +478,11 @@ function handleClientMessage(client, msg) {
         type: 'welcome',
         you: client.id,
         players: otherPlayers,
-        agentsSeed: AGENTS_SEED
+        agentsSeed: AGENTS_SEED,
+        meetingDoorClosed: meetingDoorClosed,
+        whiteboardStrokes: whiteboardStrokes,
+        typingBoardLines: typingBoardLines,
+        projectorPresenter: projectorDockedPlayer
       });
 
       // Notify others
@@ -453,6 +508,8 @@ function handleClientMessage(client, msg) {
       if (typeof msg.y === 'number') client.y = msg.y;
       if (typeof msg.dir === 'string') client.dir = msg.dir;
       if (typeof msg.facing === 'number') client.facing = msg.facing;
+      if (msg.heldDrink !== undefined) client.heldDrink = msg.heldDrink;
+      if (typeof msg.sipping === 'boolean') client.sipping = msg.sipping;
 
       // Relay move to other players
       broadcast(
@@ -462,7 +519,9 @@ function handleClientMessage(client, msg) {
           x: client.x,
           y: client.y,
           dir: client.dir,
-          facing: client.facing
+          facing: client.facing,
+          heldDrink: client.heldDrink,
+          sipping: client.sipping
         },
         client.id
       );
@@ -516,6 +575,104 @@ function handleClientMessage(client, msg) {
       break;
     }
 
+    case 'meeting-door': {
+      meetingDoorClosed = !!msg.closed;
+      broadcast({ type: 'meeting-door', closed: meetingDoorClosed });
+      break;
+    }
+
+    case 'whiteboard-stroke': {
+      if (msg.stroke && Array.isArray(msg.stroke.points)) {
+        const stroke = {
+          points: msg.stroke.points.slice(0, 250).map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 })),
+          color: String(msg.stroke.color || '#1E293B'),
+          width: Math.min(24, Math.max(1, Number(msg.stroke.width) || 3))
+        };
+        whiteboardStrokes.push(stroke);
+        if (whiteboardStrokes.length > 500) {
+          whiteboardStrokes.splice(0, whiteboardStrokes.length - 500);
+        }
+        broadcast({ type: 'whiteboard-stroke', stroke }, client.id);
+      }
+      break;
+    }
+
+    case 'whiteboard-clear': {
+      whiteboardStrokes = [];
+      broadcast({ type: 'whiteboard-clear' });
+      break;
+    }
+
+    case 'typing-board-input': {
+      if (Array.isArray(msg.lines)) {
+        typingBoardLines = msg.lines.slice(0, 16);
+      } else if (msg.text || (msg.action === 'append' && msg.text)) {
+        const item = {
+          text: String(msg.text).slice(0, 80),
+          author: msg.author || client.name || 'Colleague',
+          time: Date.now()
+        };
+        typingBoardLines.push(item);
+        if (typingBoardLines.length > 20) typingBoardLines.shift();
+      } else if (msg.op === 'append' && typeof msg.char === 'string') {
+        const lIdx = Math.max(0, Math.min(typingBoardLines.length - 1, Number(msg.line) || 0));
+        if (typeof typingBoardLines[lIdx] === 'string') {
+          if (typingBoardLines[lIdx].length < 36) {
+            typingBoardLines[lIdx] += msg.char;
+          }
+        } else if (typingBoardLines[lIdx] && typeof typingBoardLines[lIdx].text === 'string') {
+          typingBoardLines[lIdx].text += msg.char;
+        } else {
+          typingBoardLines.push({ text: msg.char, author: client.name, time: Date.now() });
+        }
+      } else if (msg.op === 'delete' || msg.action === 'delete') {
+        if (typingBoardLines.length > 0) {
+          typingBoardLines.pop();
+        }
+      } else if (msg.action === 'clear' || msg.op === 'clear') {
+        typingBoardLines = [];
+      }
+      broadcast({ type: 'typing-board-sync', lines: typingBoardLines });
+      break;
+    }
+
+    case 'projector-dock': {
+      if (projectorDockedPlayer && projectorDockedPlayer.id !== client.id) {
+        sendTo(client.socket, {
+          type: 'projector-busy',
+          dockedBy: projectorDockedPlayer.name || 'Another player'
+        });
+      } else {
+        projectorDockedPlayer = {
+          id: client.id,
+          name: client.name || 'Presenter',
+          room: 'Meeting Room',
+          action: typeof msg.action === 'string' ? msg.action.slice(0, 40) : 'Live Architecture Review',
+          time: Date.now()
+        };
+        broadcast({ type: 'projector-update', presenter: projectorDockedPlayer });
+      }
+      break;
+    }
+
+    case 'projector-undock': {
+      if (projectorDockedPlayer && projectorDockedPlayer.id === client.id) {
+        projectorDockedPlayer = null;
+        broadcast({ type: 'projector-update', presenter: null });
+      }
+      break;
+    }
+
+    case 'projector-action': {
+      if (projectorDockedPlayer && projectorDockedPlayer.id === client.id) {
+        if (typeof msg.action === 'string') {
+          projectorDockedPlayer.action = msg.action.slice(0, 40);
+          broadcast({ type: 'projector-update', presenter: projectorDockedPlayer });
+        }
+      }
+      break;
+    }
+
     case 'va': {
       // Proximity voice audio packet: { t: 'va', d: b64chunk, l: level, sr: sampleRate }
       if (typeof msg.d !== 'string') break;
@@ -524,9 +681,16 @@ function handleClientMessage(client, msg) {
       const senderY = client.y;
       const sr = typeof msg.sr === 'number' ? msg.sr : undefined;
 
+      const senderInMeeting = isInMeetingRoom(senderX, senderY);
+
       // Forward to every other joined client whose player is within 800px (no echo back to sender)
       for (const [otherId, otherClient] of clients) {
         if (otherId !== client.id && otherClient.joined && !otherClient.socket.destroyed) {
+          const receiverInMeeting = isInMeetingRoom(otherClient.x, otherClient.y);
+          if (meetingDoorClosed && (senderInMeeting !== receiverInMeeting)) {
+            // Closed meeting room isolates voice: inside only hears inside, outside only hears outside
+            continue;
+          }
           const dist = Math.hypot(otherClient.x - senderX, otherClient.y - senderY);
           if (dist <= 800) {
             sendTo(otherClient.socket, {
@@ -558,6 +722,10 @@ const HEARTBEAT_INTERVAL = setInterval(() => {
       client.socket.destroy();
       clients.delete(id);
       if (client.joined) {
+        if (projectorDockedPlayer && projectorDockedPlayer.id === id) {
+          projectorDockedPlayer = null;
+          broadcast({ type: 'projector-update', presenter: null });
+        }
         if (client.profile && client.profile !== 'guest') {
           clockManager.clockOut(client.profile, id, now);
         }

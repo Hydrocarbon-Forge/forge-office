@@ -12,12 +12,14 @@
   const T_FLOOR_STORAGE = 6;
   const T_FLOOR_ARCHIVES = 7;
   const T_FLOOR_TRADING = 8;
+  const T_FLOOR_MEETING = 9;
   const T_WALL = 10;
   const T_DOOR = 11;
   const T_SHELF = 12;
   const T_DESK = 13;
   const T_BOARD = 14;
   const T_WINDOW = 15;
+  const T_WALL_GLASS = 16;
 
   class OfficeMap {
     constructor() {
@@ -85,7 +87,7 @@
 
     addDoor(x, y, orientation = 'v', name = '') {
       this.setTile(x, y, T_DOOR, false);
-      this.doors.push({
+      const door = {
         x: x * TILE + TILE / 2,
         y: y * TILE + TILE / 2,
         tileX: x,
@@ -93,8 +95,11 @@
         orientation,
         name,
         open: 0, // 0 = closed, 1 = fully open
-        targetOpen: 0
-      });
+        targetOpen: 0,
+        manualClose: false
+      };
+      this.doors.push(door);
+      return door;
     }
 
     buildBaseRooms() {
@@ -114,9 +119,9 @@
       this.fillRoom(1, 12, 13, 22, T_FLOOR_BREAKROOM);
       this.addDoor(13, 17, 'v', 'breakroom');
 
-      // 5. Storage Room (East South: x: 30..42, y: 12..22)
-      this.fillRoom(30, 12, 42, 22, T_FLOOR_STORAGE);
-      this.addDoor(30, 17, 'v', 'storage');
+      // 5. Storage Room (East: x: 30..42, y: 12..15)
+      this.fillRoom(30, 12, 42, 15, T_FLOOR_STORAGE);
+      this.addDoor(30, 14, 'v', 'storage');
 
       // 6. Lobby (Center: x: 13..30, y: 8..22)
       this.fillRoom(13, 8, 30, 22, T_FLOOR_LOBBY);
@@ -126,7 +131,40 @@
       this.setTile(13, 7, T_DOOR, false);
       this.setTile(30, 7, T_DOOR, false);
       this.setTile(13, 17, T_DOOR, false);
-      this.setTile(30, 17, T_DOOR, false);
+      this.setTile(30, 14, T_DOOR, false);
+
+      // 7. Corridor connecting Lobby, Trading Floor, and Meeting Room (x: 30..33, y: 16..22)
+      for (let y = 16; y <= 21; y++) {
+        for (let x = 30; x <= 33; x++) {
+          this.setTile(x, y, T_FLOOR_LOBBY, false);
+        }
+      }
+      this.setTile(30, 22, T_WALL, true);
+      this.setTile(31, 22, T_WALL, true);
+      this.setTile(33, 22, T_WALL, true);
+
+      // 8. Glass Meeting Room (East: x: 34..42, y: 15..22)
+      this.fillRoom(34, 15, 42, 22, T_FLOOR_MEETING);
+
+      // Glass Walls for Meeting Room (semi-transparent, visible from outside)
+      // West Wall (x: 34, y: 15..22) facing corridor
+      for (let y = 15; y <= 22; y++) {
+        this.setTile(34, y, T_WALL_GLASS, true);
+      }
+      // South Wall (y: 22, x: 34..42) overlooking trading floor / terrace
+      for (let x = 34; x <= 42; x++) {
+        this.setTile(x, 22, T_WALL_GLASS, true);
+      }
+      // East Wall (x: 42, y: 15..22) overlooking valley
+      for (let y = 15; y <= 22; y++) {
+        this.setTile(42, y, T_WALL_GLASS, true);
+      }
+      // North Wall (y: 15, x: 34..42) separating Meeting Room from Storage
+      for (let x = 34; x <= 42; x++) {
+        this.setTile(x, 15, T_WALL, true);
+      }
+      // Closeable Door on West Wall
+      this.addDoor(34, 18, 'v', 'meeting_room');
 
       // Status Board on Lobby North Wall: left side x:15..19, right side x:24..28
       // Symmetrically centered on their wall spans with equal 1-tile gaps:
@@ -439,7 +477,12 @@
         'break_table': { x: 7 * TILE + 16, y: 18 * TILE + 16 },
         'archives_door': { x: 21 * TILE + 16, y: 22 * TILE + 16 },
         'archives_top': { x: 21 * TILE + 16, y: 25 * TILE + 16 },
-        'trading_floor': { x: 37 * TILE + 16, y: 28 * TILE + 16 }
+        'trading_floor': { x: 37 * TILE + 16, y: 28 * TILE + 16 },
+        'vending_machine': { x: 8 * TILE + 16, y: 15 * TILE + 16 },
+        'drink_station': { x: 6 * TILE + 16, y: 15 * TILE + 16 },
+        'meeting_room': { x: 38 * TILE + 16, y: 17 * TILE + 16 },
+        'meeting_table': { x: 38 * TILE + 16, y: 20 * TILE + 16 },
+        'meeting_dock': { x: 36 * TILE + 16, y: 19 * TILE + 16 }
       };
     }
 
@@ -493,9 +536,20 @@
         // Break Room Decor
         { x: 2, y: 13, kind: 'fridge', variant: 'steel', solid: true },
         { x: 3, y: 14, w: 3, h: 1, kind: 'kitchen_counter', solid: true },
+        { x: 8, y: 13, w: 1, h: 1, kind: 'vending_machine', solid: true },
         { x: 10, y: 13, kind: 'snack_shelf', variant: 'pantry', solid: true },
         { x: 7, y: 18, kind: 'cafe_table_4', solid: true },
         { x: 2, y: 21, kind: 'plant', variant: 'fern' },
+
+        // Storage Room Decor
+        { x: 33, y: 13, kind: 'server_rack', solid: true },
+        { x: 36, y: 13, kind: 'server_rack', solid: true },
+        { x: 39, y: 13, kind: 'crate_stack', solid: true },
+
+        // Meeting Room Decor
+        { x: 37, y: 18, w: 3, h: 2, kind: 'meeting_table', solid: true },
+        { x: 36, y: 17, w: 5, h: 4, kind: 'meeting_rug' },
+        { x: 34, y: 18, kind: 'door_mat', variant: 'blue' },
 
         // Archives Decor
         { x: 18, y: 23, w: 1, h: 1, kind: 'finding_aids_table', solid: true },
@@ -557,7 +611,10 @@
         { room: 'breakroom', kind: 'counter', x: 4 * TILE + 16, y: 14 * TILE + 16, radius: 5.0 * TILE, color: '#ffe4b5', intensity: 0.88, warmGlow: true },
 
         // 6. Storage Room: 1 clean overhead
-        { room: 'storage', kind: 'ceiling', x: 36 * TILE + 16, y: 16 * TILE + 16, radius: 5.5 * TILE, color: '#f0f4f8', intensity: 0.85 },
+        { room: 'storage', kind: 'ceiling', x: 36 * TILE + 16, y: 13.5 * TILE + 16, radius: 5.5 * TILE, color: '#f0f4f8', intensity: 0.85 },
+
+        // 7. Glass Meeting Room: 1 balanced overhead illuminating conference table
+        { room: 'meeting', kind: 'ceiling', x: 38 * TILE + 16, y: 18.5 * TILE + 16, radius: 6.2 * TILE, color: '#f8fafc', intensity: 0.95 },
 
         // 7. Trading Floor: 1 overhead illuminating trader terminal desk
         { room: 'trading', kind: 'desk', x: 36 * TILE + 16, y: 28 * TILE + 16, radius: 6.5 * TILE, color: '#e6fffa', intensity: 0.95 },
@@ -665,6 +722,12 @@
 
     updateDoors(entities, sfx) {
       for (const door of this.doors) {
+        if (door.manualClose) {
+          door.targetOpen = 0;
+          door.open += (0 - door.open) * 0.18;
+          continue;
+        }
+
         let shouldOpen = false;
         for (const ent of entities) {
           const dx = ent.x - door.x;
@@ -684,6 +747,16 @@
           sfx.playDoorCreak();
         }
       }
+    }
+
+    isDoorway(tx, ty) {
+      return this.doors.some((d) => d.tileX === tx && d.tileY === ty);
+    }
+
+    isInsideMeetingRoom(px, py) {
+      const tx = Math.floor(px / TILE);
+      const ty = Math.floor(py / TILE);
+      return tx >= 34 && tx <= 42 && ty >= 15 && ty <= 22;
     }
 
     checkCircleCollision(x, y, radius) {

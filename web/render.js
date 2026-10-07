@@ -1732,8 +1732,8 @@
           const px = x * TILE;
           const py = y * TILE;
 
-          if (type === 0 || type === 10 || type === 15) {
-            // Void outside or wall/window - handled in separate layers
+          if (type === 0 || type === 10 || type === 15 || type === 16) {
+            // Void outside or wall/window/glass - handled in separate layers
             continue;
           }
 
@@ -1765,6 +1765,9 @@
           } else if (type === 8) { // Trading Floor
             floorBase = '#162C2E'; // Dark teal trading floor
             floorAccent = '#213E42';
+          } else if (type === 9) { // Glass Meeting Room
+            floorBase = '#232936'; // Sophisticated midnight conference slate
+            floorAccent = '#323B4C';
           }
 
           ctx.fillStyle = floorBase;
@@ -1816,12 +1819,32 @@
             ctx.strokeRect(px + 1, py + 1, TILE - 2, TILE - 2);
 
             // Wall drop shadow onto floor or ground below
-            if (y < map.height - 1 && map.getTile(x, y + 1) !== 10 && map.getTile(x, y + 1) !== 15) {
+            if (y < map.height - 1 && map.getTile(x, y + 1) !== 10 && map.getTile(x, y + 1) !== 15 && map.getTile(x, y + 1) !== 16) {
               ctx.fillStyle = 'rgba(15, 20, 25, 0.35)';
               ctx.fillRect(px, py + TILE, TILE, 6);
             }
           } else if (type === 15) { // Architectural Window
             this.drawArchitecturalWindow(ctx, px, py, TILE, map);
+          } else if (type === 16) { // Semi-transparent Glass Wall
+            // Tinted glass pane
+            ctx.fillStyle = 'rgba(74, 144, 226, 0.22)';
+            ctx.fillRect(px, py, TILE, TILE);
+            // Aluminum frame border
+            ctx.strokeStyle = '#4A5568';
+            ctx.lineWidth = 1.8;
+            ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+            // Glass sheen reflection diagonal
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px + 4, py + TILE - 6);
+            ctx.lineTo(px + TILE - 6, py + 4);
+            ctx.stroke();
+            // Drop shadow
+            if (y < map.height - 1 && map.getTile(x, y + 1) !== 10 && map.getTile(x, y + 1) !== 16) {
+              ctx.fillStyle = 'rgba(15, 20, 25, 0.25)';
+              ctx.fillRect(px, py + TILE, TILE, 4);
+            }
           }
         }
       }
@@ -1857,6 +1880,34 @@
       const TILE = 32;
       ctx.save();
       ctx.translate(door.x, door.y);
+
+      // Special Glass Meeting Room Door
+      if (door.name === 'meeting_room') {
+        // Sleek frosted glass door with aluminum framing and stainless handle
+        const swing = door.open * 24;
+        ctx.fillStyle = 'rgba(74, 144, 226, 0.45)';
+        ctx.fillRect(-4 + swing, -TILE / 2 + 3, 8, TILE - 6);
+        ctx.strokeStyle = '#4A5568';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-4 + swing, -TILE / 2 + 3, 8, TILE - 6);
+
+        // Stainless steel pull bar handle
+        ctx.fillStyle = '#E2E8F0';
+        ctx.fillRect(-1 + swing, -TILE / 2 + 8, 2, TILE - 16);
+
+        // Etched status indicator when closed
+        if (door.open < 0.25) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 5px monospace';
+          ctx.textAlign = 'center';
+          ctx.save();
+          ctx.rotate(Math.PI / 2);
+          ctx.fillText('MEETING', 0, 1.5);
+          ctx.restore();
+        }
+        ctx.restore();
+        return;
+      }
 
       // 1. Subtle threshold strip on floor across the doorway
       ctx.fillStyle = '#4A3728';
@@ -2497,7 +2548,8 @@
       this.drawDoorMat(ctx, 13 * TILE, 7 * TILE, 'mint');   // OpenCode door
       this.drawDoorMat(ctx, 30 * TILE, 7 * TILE, 'slate');  // Antigravity door
       this.drawDoorMat(ctx, 13 * TILE, 17 * TILE, 'warm');  // Break room door
-      this.drawDoorMat(ctx, 30 * TILE, 17 * TILE, 'cool');  // Storage door
+      this.drawDoorMat(ctx, 30 * TILE, 14 * TILE, 'cool');  // Storage door
+      this.drawDoorMat(ctx, 34 * TILE, 18 * TILE, 'slate'); // Meeting room door
       this.drawDoorMat(ctx, 32 * TILE, 22 * TILE, 'teal');  // Trading floor door
       this.drawDoorMat(ctx, 21 * TILE, 22 * TILE, 'coir');  // Archives welcome mat
 
@@ -2548,16 +2600,22 @@
 
       // 7. Break Room
       this.drawCoffeeCounter(ctx, 3 * TILE, 14 * TILE, 3.5 * TILE);
+      this.drawCoffeeMaker(ctx, 3.5 * TILE, 13.7 * TILE, liveData && liveData.isBrewing);
+      this.drawDrinkStation(ctx, 5.5 * TILE, 13.7 * TILE);
       this.drawFridge(ctx, 2 * TILE + 2, 13 * TILE);
+      this.drawVendingMachine(ctx, 8 * TILE, 13 * TILE);
       this.drawSnackShelf(ctx, 10 * TILE + 2, 13 * TILE);
       this.drawCafeTable(ctx, 7 * TILE, 18 * TILE);
       this.drawWaterCooler(ctx, 10 * TILE, 15 * TILE);
 
       // 8. Storage Room
-      this.drawServerRack(ctx, 33 * TILE, 14 * TILE);
-      this.drawServerRack(ctx, 35.5 * TILE, 14 * TILE);
-      this.drawCrateStack(ctx, 38 * TILE, 18 * TILE);
+      this.drawServerRack(ctx, 33 * TILE, 13 * TILE);
+      this.drawServerRack(ctx, 36 * TILE, 13 * TILE);
+      this.drawCrateStack(ctx, 39 * TILE, 13 * TILE);
       this.drawOfficeSign(ctx, 32 * TILE + 16, 21.5 * TILE, 'TRADING FLOOR', '#38B2AC');
+
+      // 9. Glass Meeting Room
+      this.drawMeetingRoomFurniture(ctx, map, liveData);
 
       // 9. Potted Plants
       // Flanking the centered status boards on row 10 (one each side of each centered strip)
@@ -2870,6 +2928,372 @@
           ctx.fillRect(x + 3 + b * 8, sy, 6, 7);
         }
       }
+    }
+
+    drawVendingMachine(ctx, x, y) {
+      ctx.save();
+      // Drop shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(x + 2, y + 42, 28, 4);
+
+      // Deep charcoal metal chassis
+      ctx.fillStyle = '#1A202C';
+      this.drawRoundedRect(ctx, x, y, 28, 44, 3, true, true);
+
+      // Glowing blue marquee header
+      ctx.fillStyle = '#0F172A';
+      ctx.fillRect(x + 2, y + 2, 24, 7);
+      ctx.fillStyle = '#38BDF8';
+      ctx.font = 'bold 5.5px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('VEND-O', x + 14, y + 7);
+
+      // Front display glass window
+      ctx.fillStyle = '#0F172A';
+      ctx.fillRect(x + 3, y + 10, 16, 22);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 3, y + 10, 16, 22);
+
+      // 3 Drink shelves with colorful cans
+      const drinkCols = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6'];
+      for (let s = 0; s < 3; s++) {
+        const sy = y + 12 + s * 7;
+        ctx.strokeStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(x + 4, sy + 5);
+        ctx.lineTo(x + 18, sy + 5);
+        ctx.stroke();
+
+        ctx.fillStyle = drinkCols[s % drinkCols.length];
+        ctx.fillRect(x + 5, sy, 4, 5);
+        ctx.fillStyle = drinkCols[(s + 1) % drinkCols.length];
+        ctx.fillRect(x + 10, sy, 4, 5);
+        ctx.fillStyle = drinkCols[(s + 2) % drinkCols.length];
+        ctx.fillRect(x + 15, sy, 4, 5);
+      }
+
+      // Control panel on right
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + 20, y + 10, 6, 22);
+      // Keypad dots
+      ctx.fillStyle = '#94A3B8';
+      ctx.fillRect(x + 21.5, y + 12, 3, 4);
+      // Coin slot
+      ctx.fillStyle = '#F59E0B';
+      ctx.fillRect(x + 22, y + 18, 2, 1);
+      // LED indicator
+      ctx.fillStyle = '#10B981';
+      ctx.fillRect(x + 22, y + 21, 2, 2);
+
+      // Dispense bin at bottom
+      ctx.fillStyle = '#0B0F19';
+      ctx.fillRect(x + 4, y + 34, 20, 7);
+      ctx.strokeStyle = '#334155';
+      ctx.strokeRect(x + 4, y + 34, 20, 7);
+      ctx.fillStyle = '#64748B';
+      ctx.fillRect(x + 7, y + 35, 14, 2);
+
+      ctx.restore();
+    }
+
+    drawCoffeeMaker(ctx, x, y, isBrewing = false) {
+      ctx.save();
+      // Stainless steel espresso machine
+      ctx.fillStyle = '#E2E8F0';
+      this.drawRoundedRect(ctx, x, y, 22, 20, 2, true, true);
+      // Top warmer rack
+      ctx.fillStyle = '#94A3B8';
+      ctx.fillRect(x + 2, y - 2, 18, 2);
+      // Tiny cups on top
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x + 4, y - 5, 4, 3);
+      ctx.fillRect(x + 10, y - 5, 4, 3);
+      // Bean hopper on top
+      ctx.fillStyle = 'rgba(74, 85, 104, 0.8)';
+      ctx.fillRect(x + 15, y - 7, 5, 5);
+      ctx.fillStyle = '#78350F';
+      ctx.fillRect(x + 16, y - 6, 3, 4);
+
+      // Pressure gauge
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(x + 6, y + 6, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#E11D48';
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + 6);
+      ctx.lineTo(x + 7, y + 5);
+      ctx.stroke();
+
+      // Power switch & Ready LED
+      ctx.fillStyle = isBrewing ? '#F59E0B' : '#10B981';
+      ctx.beginPath();
+      ctx.arc(x + 16, y + 6, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Drip tray & spouts
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x + 3, y + 12, 16, 2);
+      ctx.fillStyle = '#64748B';
+      ctx.fillRect(x + 2, y + 17, 18, 3);
+
+      if (isBrewing) {
+        // Espresso stream & cup
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x + 8, y + 13, 6, 5);
+        ctx.fillStyle = '#78350F';
+        ctx.fillRect(x + 10, y + 11, 2, 4);
+        // Little steam cloud
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(x + 11, y + 8, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    drawDrinkStation(ctx, x, y) {
+      ctx.save();
+      // Modern artisan beverage tower
+      ctx.fillStyle = '#1E293B';
+      this.drawRoundedRect(ctx, x, y, 22, 22, 2, true, true);
+
+      // Digital touch display
+      ctx.fillStyle = '#0F172A';
+      ctx.fillRect(x + 2, y + 2, 18, 7);
+      ctx.fillStyle = '#38BDF8';
+      ctx.font = 'bold 4.5px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('FORGE DRINKS', x + 11, y + 6.5);
+
+      // Flavor syrup bottles on top
+      const syrupCols = ['#F59E0B', '#DC2626', '#10B981'];
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = syrupCols[i];
+        ctx.fillRect(x + 3 + i * 6, y - 5, 4, 5);
+        ctx.fillStyle = '#CBD5E1';
+        ctx.fillRect(x + 4 + i * 6, y - 7, 2, 2);
+      }
+
+      // Dispenser alcove
+      ctx.fillStyle = '#0F172A';
+      ctx.fillRect(x + 4, y + 10, 14, 10);
+      ctx.fillStyle = '#94A3B8';
+      ctx.fillRect(x + 9, y + 10, 4, 2);
+      // Drip grate
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + 3, y + 19, 16, 2);
+      ctx.restore();
+    }
+
+    drawMeetingRoomFurniture(ctx, map, liveData) {
+      const TILE = map.tile;
+      ctx.save();
+
+      // 1. Conference Table (x: 37..39, y: 18..19)
+      const tx = 37 * TILE;
+      const ty = 18 * TILE;
+      const tw = 3 * TILE;
+      const th = 2 * TILE;
+
+      // Table drop shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      this.drawRoundedRect(ctx, tx + 2, ty + 4, tw, th, 6, true, false);
+
+      // Rich dark walnut tabletop
+      ctx.fillStyle = '#3E2723';
+      this.drawRoundedRect(ctx, tx, ty, tw, th, 6, true, true);
+      // Brass inlay border
+      ctx.strokeStyle = '#D97706';
+      ctx.lineWidth = 1.2;
+      this.drawRoundedRect(ctx, tx + 3, ty + 3, tw - 6, th - 6, 4, false, true);
+      // Polished table center grain
+      ctx.fillStyle = '#4E342E';
+      this.drawRoundedRect(ctx, tx + 6, ty + 6, tw - 12, th - 12, 3, true, false);
+
+      // Executive swivel chairs around table
+      const chairCol = '#1E293B';
+      // North chairs
+      this.drawChair(ctx, tx + 12, ty - 8, chairCol);
+      this.drawChair(ctx, tx + 48, ty - 8, chairCol);
+      this.drawChair(ctx, tx + 84, ty - 8, chairCol);
+      // South chairs
+      this.drawChair(ctx, tx + 12, ty + th + 4, chairCol);
+      this.drawChair(ctx, tx + 48, ty + th + 4, chairCol);
+      this.drawChair(ctx, tx + 84, ty + th + 4, chairCol);
+      // East chair
+      this.drawChair(ctx, tx + tw + 4, ty + th / 2 - 2, chairCol);
+
+      // 2. Projector Dock at Table Head (West end of table)
+      const isDocked = liveData && liveData.projectorPresenter;
+      const dx = tx + 8;
+      const dy = ty + th / 2 - 4;
+      ctx.fillStyle = isDocked ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.25)';
+      ctx.beginPath();
+      ctx.arc(dx, dy, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // Dock terminal block
+      ctx.fillStyle = '#1E293B';
+      this.drawRoundedRect(ctx, dx - 6, dy - 5, 12, 10, 2, true, true);
+      ctx.fillStyle = isDocked ? '#10B981' : '#38BDF8';
+      ctx.fillRect(dx - 4, dy - 3, 8, 3);
+      // LED status
+      ctx.fillStyle = isDocked ? '#10B981' : '#F59E0B';
+      ctx.beginPath();
+      ctx.arc(dx + 3, dy + 2, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 3. Projector Screen on North Wall (x: 37 * TILE, y: 15.2 * TILE)
+      const sx = 37 * TILE;
+      const sy = 15.2 * TILE;
+      const sw = 3 * TILE;
+      const sh = 1.3 * TILE;
+
+      // Screen housing / frame
+      ctx.fillStyle = '#0F172A';
+      this.drawRoundedRect(ctx, sx - 2, sy - 2, sw + 4, sh + 4, 3, true, true);
+
+      if (isDocked) {
+        const pres = liveData.projectorPresenter;
+        // Illuminated active screen glow
+        ctx.fillStyle = '#0A2540';
+        ctx.fillRect(sx, sy, sw, sh);
+
+        // Header bar with presenter name
+        ctx.fillStyle = '#1E40AF';
+        ctx.fillRect(sx, sy, sw, 8);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 6px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`SHARE: ${pres.name || 'Nathan'}`, sx + 3, sy + 6);
+
+        // Active presentation graphics (mini flow chart / architecture diagram)
+        ctx.fillStyle = '#38BDF8';
+        ctx.fillRect(sx + 6, sy + 12, 16, 10);
+        ctx.fillStyle = '#10B981';
+        ctx.fillRect(sx + 34, sy + 12, 18, 10);
+        ctx.fillStyle = '#F59E0B';
+        ctx.fillRect(sx + 64, sy + 12, 18, 10);
+        // Connective arrows
+        ctx.strokeStyle = '#94A3B8';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx + 22, sy + 17);
+        ctx.lineTo(sx + 34, sy + 17);
+        ctx.moveTo(sx + 52, sy + 17);
+        ctx.lineTo(sx + 64, sy + 17);
+        ctx.stroke();
+
+        // Footer action label
+        ctx.fillStyle = '#CBD5E1';
+        ctx.font = '5.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(pres.action || 'Projector Presentation', sx + sw / 2, sy + sh - 4);
+
+        // Ceiling projector unit & beam
+        const px = 38.5 * TILE;
+        const py = 20 * TILE;
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#38BDF8';
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Translucent light beam from projector to screen
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(sx, sy + sh);
+        ctx.lineTo(sx + sw, sy + sh);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // Standby screen
+        ctx.fillStyle = '#181A20';
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 5.5px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('HYDROCARBON FORGE', sx + sw / 2, sy + sh / 2 - 2);
+        ctx.fillStyle = '#334155';
+        ctx.font = '5px monospace';
+        ctx.fillText('DOCK TO PRESENT', sx + sw / 2, sy + sh / 2 + 7);
+      }
+
+      // 4. Glass Whiteboard on West Wall (x: 34.5 * TILE, y: 15.4 * TILE)
+      const wbx = 34.5 * TILE;
+      const wby = 15.4 * TILE;
+      const wbw = 2.0 * TILE;
+      const wbh = 1.3 * TILE;
+      // Frosted glass background
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.82)';
+      this.drawRoundedRect(ctx, wbx, wby, wbw, wbh, 2, true, true);
+      // Chrome standoff mounts in 4 corners
+      ctx.fillStyle = '#64748B';
+      [ [wbx + 2, wby + 2], [wbx + wbw - 4, wby + 2], [wbx + 2, wby + wbh - 4], [wbx + wbw - 4, wby + wbh - 4] ].forEach(([cx, cy]) => {
+        ctx.fillRect(cx, cy, 2, 2);
+      });
+      // Header
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 5px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('WHITEBOARD', wbx + wbw / 2, wby + 6);
+      // Marker tray at bottom
+      ctx.fillStyle = '#94A3B8';
+      ctx.fillRect(wbx + 4, wby + wbh - 2, wbw - 8, 2);
+      // Draw miniature synced strokes
+      if (liveData && Array.isArray(liveData.whiteboardStrokes)) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(wbx + 2, wby + 8, wbw - 4, wbh - 12);
+        ctx.clip();
+        for (const strk of liveData.whiteboardStrokes) {
+          if (!strk.points || strk.points.length < 2) continue;
+          ctx.strokeStyle = strk.color || '#1E293B';
+          ctx.lineWidth = Math.max(0.5, (strk.width || 2) * 0.2);
+          ctx.beginPath();
+          const p0 = strk.points[0];
+          ctx.moveTo(wbx + 4 + (p0.x / 560) * (wbw - 8), wby + 9 + (p0.y / 340) * (wbh - 13));
+          for (let i = 1; i < strk.points.length; i++) {
+            const p = strk.points[i];
+            ctx.lineTo(wbx + 4 + (p.x / 560) * (wbw - 8), wby + 9 + (p.y / 340) * (wbh - 13));
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 5. Typing Board / Digital Ledger on North-East Wall (x: 40.4 * TILE, y: 15.4 * TILE)
+      const tbx = 40.4 * TILE;
+      const tby = 15.4 * TILE;
+      const tbw = 1.4 * TILE;
+      const tbh = 1.3 * TILE;
+      // Amber CRT terminal bezel
+      ctx.fillStyle = '#1A1813';
+      this.drawRoundedRect(ctx, tbx, tby, tbw, tbh, 2, true, true);
+      ctx.fillStyle = '#0F0E0B';
+      ctx.fillRect(tbx + 2, tby + 2, tbw - 4, tbh - 4);
+      // Header
+      ctx.fillStyle = '#F59E0B';
+      ctx.font = 'bold 4.5px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('TYPING BOARD', tbx + 4, tby + 7);
+      // Render text lines
+      if (liveData && Array.isArray(liveData.typingBoardLines)) {
+        ctx.fillStyle = '#FDE68A';
+        ctx.font = '4px monospace';
+        const lines = liveData.typingBoardLines.slice(0, 4);
+        lines.forEach((l, idx) => {
+          const text = (typeof l === 'object' && l) ? (l.text || '') : String(l);
+          ctx.fillText(text.substring(0, 14), tbx + 4, tby + 13 + idx * 6);
+        });
+      }
+
+      ctx.restore();
     }
 
     drawBench(ctx, x, y) {
@@ -3764,7 +4188,19 @@
         ctx.fillStyle = SKIN_TONE;
         this.drawRoundedRect(ctx, 7.5, 1, 2.5, 2.8, 1, true, true);
         if (papers) this.drawPapersStack(ctx, 7, -1);
-        else if (heldItem) this.drawCarriedDrink(ctx, 8, 0, heldItem);
+        else if (heldItem) {
+          if (options.sipping) {
+            ctx.save();
+            ctx.translate(6, -6);
+            ctx.rotate(-0.35);
+            this.drawCarriedDrink(ctx, 0, 0, heldItem);
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(4, -4, 2, 2);
+            ctx.restore();
+          } else {
+            this.drawCarriedDrink(ctx, 8, 0, heldItem);
+          }
+        }
       } else {
         ctx.fillStyle = SUIT_BASE;
         this.drawRoundedRect(ctx, 2.5 + frontArmOffset, -2, 3.6, 7.5, 1.8, true, true);

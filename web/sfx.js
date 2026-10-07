@@ -632,7 +632,53 @@
     } catch {}
   }
 
-  // 11. UI tick / Clock tick: Wooden mantel tick
+  // 11. Coin dispense clink: Vending machine mechanical coin drop
+  function playCoin() {
+    if (!audioCtx || isMuted || !sfxBusGain) return;
+    try {
+      const t = audioCtx.currentTime;
+      [
+        { f: 987.77, off: 0.00, gain: 0.04 },
+        { f: 1318.51, off: 0.04, gain: 0.045 },
+        { f: 880.00, off: 0.12, gain: 0.02 }
+      ].forEach(n => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(n.f, t + n.off);
+        gain.gain.setValueAtTime(0.0001, t + n.off);
+        gain.gain.linearRampToValueAtTime(n.gain, t + n.off + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n.off + 0.09);
+        osc.connect(gain);
+        gain.connect(sfxBusGain);
+        osc.start(t + n.off);
+        osc.stop(t + n.off + 0.10);
+      });
+    } catch {}
+  }
+
+  // 12. Drink sip: Refreshing liquid sip sound
+  function playDrinkSip() {
+    if (!audioCtx || isMuted || !sfxBusGain) return;
+    try {
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(260, t);
+      osc.frequency.exponentialRampToValueAtTime(520, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(320, t + 0.18);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.linearRampToValueAtTime(0.035, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      osc.connect(gain);
+      gain.connect(sfxBusGain);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    } catch {}
+  }
+
+  // 13. UI tick / Clock tick: Wooden mantel tick
   function playUiTick() {
     if (!audioCtx || isMuted || !sfxBusGain) return;
     try {
@@ -691,6 +737,8 @@
     playPaperRustle,
     playCoffeeGurgle,
     playNewBoxJingle,
+    playCoin,
+    playDrinkSip,
     playUiTick
   };
 })(typeof window !== 'undefined' ? window : global);

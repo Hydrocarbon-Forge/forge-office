@@ -57,7 +57,7 @@ async function capture() {
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = false;
 
-      const renderer = new window.Renderer();
+      const renderer = new window.Renderer(canvas);
 
       const items = [
         { label: 'Base (Coral)', opt: { color: 'coral', hat: 'none', face: 'plain' } },
@@ -94,7 +94,7 @@ async function capture() {
     '--no-sandbox',
     '--disable-gpu',
     `--remote-debugging-port=${CDP_PORT}`,
-    '--window-size=960,340',
+    '--window-size=960,400',
     fileUrl
   ], { stdio: 'ignore' });
 
@@ -104,7 +104,8 @@ async function capture() {
       try {
         const res = await fetch(`http://127.0.0.1:${CDP_PORT}/json`);
         const list = await res.json();
-        if (list.length > 0 && list[0].webSocketDebuggerUrl) return list[0].webSocketDebuggerUrl;
+        const page = list.find(p => p.type === 'page' && p.webSocketDebuggerUrl);
+        if (page) return page.webSocketDebuggerUrl;
       } catch {}
       await new Promise(r => setTimeout(r, 100));
     }
