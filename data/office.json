@@ -31,11 +31,12 @@
       { "id": "bubble", "name": "Soapy Bubbles" }
     ],
     "faces": [
-      { "id": "plain", "name": "Cozy Plain" },
-      { "id": "glasses", "name": "Focus Glasses" },
-      { "id": "blush", "name": "Rosy Cheeks" },
-      { "id": "freckles", "name": "Warm Freckles" },
-      { "id": "goggles", "name": "Forge Goggles" }
+      { "id": "big-eyes", "name": "Big Eyes" },
+      { "id": "blush", "name": "Soft Blush" },
+      { "id": "sparkle", "name": "Sparkle Eyes" },
+      { "id": "antenna", "name": "Antenna" },
+      { "id": "round-glasses", "name": "Round Glasses" },
+      { "id": "none", "name": "Clean Visage" }
     ]
   },
   "c6": {

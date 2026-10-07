@@ -1,12 +1,12 @@
 {
   "nathan": {
     "profile": "nathan",
-    "name": "Nathan",
-    "color": "teal",
-    "hat": "cap",
-    "visor": "plain",
-    "face": "plain",
-    "trail": "sparkle",
+    "name": "Alice",
+    "color": "coral",
+    "hat": "none",
+    "visor": "classic",
+    "face": "classic",
+    "trail": "none",
     "drinkPresets": [
       {
         "name": "Morning Spark",
@@ -25,7 +25,7 @@
         ]
       }
     ],
-    "lastSeen": 1791350745288
+    "lastSeen": 1791379171000
   },
   "gavin": {
     "profile": "gavin",
@@ -36,6 +36,6 @@
     "face": "classic",
     "trail": "none",
     "drinkPresets": [],
-    "lastSeen": 1791350683368
+    "lastSeen": 1791379171002
   }
 }

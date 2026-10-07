@@ -20,7 +20,8 @@ const MIME_TYPES = {
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8'
+  '.txt': 'text/plain; charset=utf-8',
+  '.mp3': 'audio/mpeg'
 };
 
 // Seed for deterministic office agent behavior (day-based + fixed offset)
@@ -101,6 +102,25 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ ok: true, presets }));
       return;
     }
+  }
+
+  // Music tracks listing endpoint
+  if (pathname === '/api/office/music') {
+    const musicDir = path.join(__dirname, 'web', 'music');
+    try {
+      if (fs.existsSync(musicDir)) {
+        const files = fs.readdirSync(musicDir)
+          .filter((f) => f.toLowerCase().endsWith('.mp3'))
+          .sort()
+          .map((f) => `/music/${f}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, tracks: files, files }));
+        return;
+      }
+    } catch {}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, tracks: [], files: [] }));
+    return;
   }
 
   // 2. Proxy /api/* -> http://127.0.0.1:8903/api/*
@@ -468,7 +488,10 @@ function handleClientMessage(client, msg) {
             x: c.x,
             y: c.y,
             dir: c.dir,
-            facing: c.facing
+            facing: c.facing,
+            heldItem: c.heldItem || c.heldDrink || null,
+            heldDrink: c.heldDrink || c.heldItem || null,
+            sipping: Boolean(c.sipping)
           });
         }
       }
@@ -508,7 +531,13 @@ function handleClientMessage(client, msg) {
       if (typeof msg.y === 'number') client.y = msg.y;
       if (typeof msg.dir === 'string') client.dir = msg.dir;
       if (typeof msg.facing === 'number') client.facing = msg.facing;
-      if (msg.heldDrink !== undefined) client.heldDrink = msg.heldDrink;
+      if (msg.heldItem !== undefined) {
+        client.heldItem = msg.heldItem;
+        client.heldDrink = msg.heldItem;
+      } else if (msg.heldDrink !== undefined) {
+        client.heldDrink = msg.heldDrink;
+        client.heldItem = msg.heldDrink;
+      }
       if (typeof msg.sipping === 'boolean') client.sipping = msg.sipping;
 
       // Relay move to other players
@@ -520,6 +549,7 @@ function handleClientMessage(client, msg) {
           y: client.y,
           dir: client.dir,
           facing: client.facing,
+          heldItem: client.heldItem,
           heldDrink: client.heldDrink,
           sipping: client.sipping
         },
@@ -643,11 +673,14 @@ function handleClientMessage(client, msg) {
           dockedBy: projectorDockedPlayer.name || 'Another player'
         });
       } else {
+        const topic = typeof msg.action === 'string' ? msg.action.slice(0, 40) : (typeof msg.topic === 'string' ? msg.topic.slice(0, 40) : 'Live Architecture Review');
         projectorDockedPlayer = {
           id: client.id,
           name: client.name || 'Presenter',
           room: 'Meeting Room',
-          action: typeof msg.action === 'string' ? msg.action.slice(0, 40) : 'Live Architecture Review',
+          action: topic,
+          topic: topic,
+          screenShareActive: Boolean(msg.screenShareActive),
           time: Date.now()
         };
         broadcast({ type: 'projector-update', presenter: projectorDockedPlayer });
@@ -667,8 +700,16 @@ function handleClientMessage(client, msg) {
       if (projectorDockedPlayer && projectorDockedPlayer.id === client.id) {
         if (typeof msg.action === 'string') {
           projectorDockedPlayer.action = msg.action.slice(0, 40);
-          broadcast({ type: 'projector-update', presenter: projectorDockedPlayer });
+          projectorDockedPlayer.topic = projectorDockedPlayer.action;
         }
+        if (typeof msg.topic === 'string') {
+          projectorDockedPlayer.topic = msg.topic.slice(0, 40);
+          projectorDockedPlayer.action = projectorDockedPlayer.topic;
+        }
+        if (msg.screenShareActive !== undefined) {
+          projectorDockedPlayer.screenShareActive = Boolean(msg.screenShareActive);
+        }
+        broadcast({ type: 'projector-update', presenter: projectorDockedPlayer });
       }
       break;
     }

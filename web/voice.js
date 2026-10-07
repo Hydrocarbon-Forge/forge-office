@@ -144,7 +144,7 @@
       this.micSource = null;
       this.scriptProcessor = null;
       this.selfMonitorGainNode = null;
-      this.isSelfMonitorEnabled = true; // Default: ON per spec
+      this.isSelfMonitorEnabled = false; // Default: OFF per spec
       this.hasShownMonitorToast = false;
       this.isMicEnabled = false;
       this.isVoiceMuted = false; // V key: mic off, keep receiving
@@ -260,6 +260,14 @@
         }
       }
       return this.isSelfMonitorEnabled;
+    }
+
+    get selfMonitor() {
+      return this.isSelfMonitorEnabled;
+    }
+
+    set selfMonitor(enabled) {
+      this.setSelfMonitor(enabled);
     }
 
     setSelfMonitor(enabled) {

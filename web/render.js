@@ -3168,22 +3168,28 @@
         ctx.textAlign = 'left';
         ctx.fillText(`SHARE: ${pres.name || 'Nathan'}`, sx + 3, sy + 6);
 
-        // Active presentation graphics (mini flow chart / architecture diagram)
-        ctx.fillStyle = '#38BDF8';
-        ctx.fillRect(sx + 6, sy + 12, 16, 10);
-        ctx.fillStyle = '#10B981';
-        ctx.fillRect(sx + 34, sy + 12, 18, 10);
-        ctx.fillStyle = '#F59E0B';
-        ctx.fillRect(sx + 64, sy + 12, 18, 10);
-        // Connective arrows
-        ctx.strokeStyle = '#94A3B8';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx + 22, sy + 17);
-        ctx.lineTo(sx + 34, sy + 17);
-        ctx.moveTo(sx + 52, sy + 17);
-        ctx.lineTo(sx + 64, sy + 17);
-        ctx.stroke();
+        // Active presentation screen display
+        const video = liveData && liveData.localScreenVideo;
+        if (video && video.readyState >= 2 && video.videoWidth > 0) {
+          try {
+            ctx.drawImage(video, sx, sy + 8, sw, sh - 14);
+          } catch {}
+        } else {
+          ctx.fillStyle = '#0F172A';
+          ctx.fillRect(sx, sy + 8, sw, sh - 14);
+          ctx.fillStyle = '#38BDF8';
+          ctx.font = 'bold 5px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`TOPIC: ${pres.action || 'Live Review'}`, sx + sw / 2, sy + 16);
+          ctx.fillStyle = '#64748B';
+          ctx.font = '4.5px monospace';
+          if (pres.screenShareActive) {
+            ctx.fillStyle = '#10B981';
+            ctx.fillText('● SCREEN SHARE ACTIVE', sx + sw / 2, sy + 24);
+          } else {
+            ctx.fillText('[screen not viewable in this demo build]', sx + sw / 2, sy + 24);
+          }
+        }
 
         // Footer action label
         ctx.fillStyle = '#CBD5E1';
@@ -3252,7 +3258,17 @@
         ctx.rect(wbx + 2, wby + 8, wbw - 4, wbh - 12);
         ctx.clip();
         for (const strk of liveData.whiteboardStrokes) {
-          if (!strk.points || strk.points.length < 2) continue;
+          if (!strk.points || strk.points.length < 1) continue;
+          if (strk.points.length === 1) {
+            const p0 = strk.points[0];
+            const px = wbx + 4 + (p0.x / 560) * (wbw - 8);
+            const py = wby + 9 + (p0.y / 340) * (wbh - 13);
+            ctx.fillStyle = strk.color || '#1E293B';
+            ctx.beginPath();
+            ctx.arc(px, py, Math.max(0.6, (strk.width || 2) * 0.15), 0, Math.PI * 2);
+            ctx.fill();
+            continue;
+          }
           ctx.strokeStyle = strk.color || '#1E293B';
           ctx.lineWidth = Math.max(0.5, (strk.width || 2) * 0.2);
           ctx.beginPath();
@@ -3924,13 +3940,6 @@
       const scale = options.scale || 1.0;
       const pal = resolveColor(colorKey);
 
-      const SUIT_BASE = '#3A3D44';
-      const SUIT_DARK = '#26282D';
-      const SKIN_TONE = '#FCD8B6';
-      const HAIR_COLOR = '#2A2321';
-      const BELT_LEATHER = '#4A3425';
-      const BRASS_HARDWARE = '#D97706';
-
       ctx.save();
       if (options.alpha !== undefined) ctx.globalAlpha = Math.max(0, Math.min(1, options.alpha));
       ctx.translate(x, y);
@@ -3938,38 +3947,46 @@
       // Ground Drop Shadow
       ctx.fillStyle = 'rgba(15, 20, 28, 0.32)';
       ctx.beginPath();
-      ctx.ellipse(0, 13 * scale, 10 * scale, 5 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 12 * scale, 9.5 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Turn squash
+      // Turn squash / idle breathing
       const squashX = options.squashX || 1.0;
       const squashY = options.squashY || 1.0;
       ctx.scale(squashX, squashY);
 
-      // Sinusoidal walk bob
+      // Lively sinusoidal walk bob
       const walkPhase = (frame % 4) / 4;
-      const bob = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 1.5 * scale : 0;
+      const bob = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 2.2 * scale : 0;
       ctx.translate(0, bob);
 
       ctx.scale(facing, 1);
       ctx.scale(scale, scale);
 
-      // 1. Back Arm (behind body)
       const f = isMoving ? (frame % 4) : 1;
+
+      // 1. Cute puff tail (behind body)
+      ctx.fillStyle = pal.dark;
+      ctx.strokeStyle = '#22252A';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(-8, 3, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 2. Back Arm / Paw (behind body)
       let backArmOffset = 0;
       let frontArmOffset = 0;
       if (isMoving && !isSitting) {
-        if (f === 0) { backArmOffset = -2; frontArmOffset = 2; }
-        else if (f === 2) { backArmOffset = 2; frontArmOffset = -2; }
+        if (f === 0) { backArmOffset = -2.5; frontArmOffset = 2.5; }
+        else if (f === 2) { backArmOffset = 2.5; frontArmOffset = -2.5; }
       }
+      ctx.fillStyle = pal.dark;
       ctx.strokeStyle = '#22252A';
-      ctx.lineWidth = 1.8;
-      ctx.fillStyle = SUIT_DARK;
-      this.drawRoundedRect(ctx, -7.5 + backArmOffset, -2, 3.5, 7.5, 1.8, true, true);
-      ctx.fillStyle = '#26282D';
-      this.drawRoundedRect(ctx, -7.5 + backArmOffset, 4.5, 3.5, 2.5, 1.2, true, true);
+      ctx.lineWidth = 1.5;
+      this.drawRoundedRect(ctx, -7.5 + backArmOffset, 0, 3.8, 6.5, 1.8, true, true);
 
-      // 2. Satchel / Toolbelt accessories (drawn behind front body)
+      // 3. Accessories behind body (satchel / toolbelt)
       if (options.isAgentC6 || options.forgeTool) {
         ctx.save();
         ctx.fillStyle = '#94A3B8';
@@ -3988,8 +4005,6 @@
         ctx.arc(-11, -1.5, 2.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#22252A';
-        ctx.fillRect(-12.5, -2.5, 2, 2);
         ctx.restore();
       }
       if (options.hasSatchel !== false && !options.isAgentC6) {
@@ -3997,217 +4012,273 @@
         this.drawRoundedRect(ctx, -8.5, 2, 4.5, 6, 1.5, true, true);
         ctx.fillStyle = '#784E34';
         this.drawRoundedRect(ctx, -8.5, 2, 4.5, 2.8, 1, true, false);
-        ctx.fillStyle = BRASS_HARDWARE;
+        ctx.fillStyle = '#D97706';
         ctx.fillRect(-6.5, 4, 1.2, 1.2);
       }
 
-      // 3. Legs & Feet
+      // 4. Cute Stubby Feet
       if (isSitting) {
-        ctx.fillStyle = SUIT_BASE;
-        this.drawRoundedRect(ctx, -5, 6, 10, 4.5, 2, true, true);
-        ctx.fillStyle = '#22252A';
-        this.drawRoundedRect(ctx, -4, 9, 8, 4, 2, true, true);
+        ctx.fillStyle = pal.dark;
+        ctx.strokeStyle = '#22252A';
+        ctx.lineWidth = 1.6;
+        this.drawRoundedRect(ctx, -4.5, 8, 4.5, 3.5, 1.8, true, true);
+        this.drawRoundedRect(ctx, 1.5, 8, 4.5, 3.5, 1.8, true, true);
       } else {
-        let leftX = -5.5, leftY = 7, leftH = 6.5;
-        let rightX = 1.5, rightY = 7, rightH = 6.5;
+        let leftX = -5.5, leftY = 8, leftH = 4.5;
+        let rightX = 1.5, rightY = 8, rightH = 4.5;
         if (isMoving) {
-          if (f === 0) { leftX = -7; leftY = 6.5; leftH = 6; rightX = 2.5; rightY = 7.5; rightH = 6.5; }
-          else if (f === 2) { leftX = -4; leftY = 7.5; leftH = 6.5; rightX = 0; rightY = 6.5; rightH = 6; }
+          if (f === 0) { leftX = -7.5; leftY = 7; rightX = 2.5; rightY = 8.5; }
+          else if (f === 2) { leftX = -3.5; leftY = 8.5; rightX = 0.5; rightY = 7; }
         }
-        // Back Leg
-        ctx.fillStyle = SUIT_DARK;
-        this.drawRoundedRect(ctx, leftX, leftY, 4.2, leftH, 2, true, true);
-        ctx.fillStyle = '#22252A';
-        this.drawRoundedRect(ctx, leftX - 0.5, leftY + leftH - 3, 5, 3.5, 1.5, true, true);
-
-        // Front Leg
-        ctx.fillStyle = SUIT_BASE;
-        this.drawRoundedRect(ctx, rightX, rightY, 4.5, rightH, 2, true, true);
-        ctx.fillStyle = pal.fill;
-        ctx.fillRect(rightX, rightY + rightH - 3.2, 4.5, 1.2);
-        ctx.fillStyle = '#282B30';
-        this.drawRoundedRect(ctx, rightX - 0.5, rightY + rightH - 3, 5.5, 3.5, 1.5, true, true);
-        ctx.fillStyle = '#1A1D20';
-        ctx.fillRect(rightX - 0.5, rightY + rightH - 1, 5.5, 1);
+        ctx.fillStyle = pal.dark;
+        ctx.strokeStyle = '#22252A';
+        ctx.lineWidth = 1.6;
+        // Back foot
+        this.drawRoundedRect(ctx, leftX, leftY, 4.5, leftH, 2.2, true, true);
+        // Front foot
+        this.drawRoundedRect(ctx, rightX, rightY, 4.8, rightH, 2.2, true, true);
+        // Foot highlight
+        ctx.fillStyle = pal.highlight;
+        ctx.fillRect(rightX + 1, rightY + 1, 2.2, 1);
       }
 
-      // 4. Overalls Torso
-      ctx.fillStyle = SUIT_BASE;
-      this.drawRoundedRect(ctx, -7, -4, 13, 11.5, 3.5, true, true);
-      // Dark side contour
-      ctx.fillStyle = SUIT_DARK;
-      ctx.fillRect(-7, 0, 1.5, 7);
-
-      // Leather Utility Belt
-      ctx.fillStyle = BELT_LEATHER;
-      this.drawRoundedRect(ctx, -7.5, 5.5, 14, 2.5, 1, true, true);
-      ctx.fillStyle = BRASS_HARDWARE;
-      ctx.fillRect(1, 5.5, 2.2, 2.5);
-
-      // Hex Chest Badge (Carbon-6 motif)
-      this.drawHexBadge(ctx, 2.2, 0.5, 2.6, pal);
-
-      // Pocket Seam
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 1;
+      // 5. Creature Ears / Nubs (top of head sides)
+      ctx.fillStyle = pal.fill;
+      ctx.strokeStyle = '#22252A';
+      ctx.lineWidth = 1.5;
+      // Left ear nub
       ctx.beginPath();
-      ctx.moveTo(-4, 3.5);
-      ctx.lineTo(0, 3.5);
+      ctx.ellipse(-5.2, -15, 2.2, 3.2, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = pal.highlight;
+      ctx.beginPath();
+      ctx.ellipse(-5.2, -15, 1.2, 1.8, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Right ear nub
+      ctx.fillStyle = pal.fill;
+      ctx.beginPath();
+      ctx.ellipse(5.2, -15, 2.2, 3.2, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = pal.highlight;
+      ctx.beginPath();
+      ctx.ellipse(5.2, -15, 1.2, 1.8, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 6. Cute Marshmallow Body (Full body tinted in palette)
+      ctx.fillStyle = pal.fill;
+      ctx.strokeStyle = '#22252A';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(0, -15);
+      ctx.bezierCurveTo(4.5, -15, 7.5, -12, 7.5, -7.5);
+      ctx.bezierCurveTo(8.5, -2, 8.5, 3, 7.5, 7);
+      ctx.quadraticCurveTo(7, 8.5, 4.5, 8.5);
+      ctx.lineTo(-4.5, 8.5);
+      ctx.quadraticCurveTo(-7, 8.5, -7.5, 7);
+      ctx.bezierCurveTo(-8.5, 3, -8.5, -2, -7.5, -7.5);
+      ctx.bezierCurveTo(-7.5, -12, -4.5, -15, 0, -15);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
 
-      // Collar or Scarf
+      // Soft belly / tummy patch
+      ctx.save();
+      ctx.fillStyle = pal.highlight;
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.ellipse(0.5, 1.5, 5.2, 5.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 7. Hex Carbon-6 Chest Badge
+      this.drawHexBadge(ctx, 0.8, 0.5, 2.7, pal);
+
+      // Special C6 Agent core spark
+      if (options.isAgentC6) {
+        ctx.save();
+        ctx.fillStyle = '#38BDF8';
+        ctx.beginPath();
+        ctx.arc(0.8, 0.5, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0.3, 0.0, 1.0, 1.0);
+        ctx.restore();
+      }
+
+      // 8. Collar / Scarf (Claude or hasScarf)
       if (options.hasScarf || options.isAgentClaude) {
         const scarfCol = options.scarfColor || '#E07A5F';
         ctx.fillStyle = scarfCol;
         ctx.strokeStyle = '#22252A';
         ctx.lineWidth = 1.5;
-        this.drawRoundedRect(ctx, -5, -4.5, 10, 3.5, 1.8, true, true);
-        this.drawRoundedRect(ctx, -1, -2, 3.2, 7, 1.2, true, true);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.fillRect(-1, 3.5, 3.2, 1);
-      } else {
-        ctx.fillStyle = pal.fill;
-        this.drawRoundedRect(ctx, -3.5, -4.5, 7.5, 2.2, 1, true, true);
+        this.drawRoundedRect(ctx, -6, -5.5, 12, 3.8, 1.8, true, true);
+        this.drawRoundedRect(ctx, -1, -3, 3.5, 7.5, 1.2, true, true);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(-1, 3, 3.5, 1);
       }
 
-      // 5. Head & Hair
-      ctx.fillStyle = HAIR_COLOR;
-      ctx.strokeStyle = '#22252A';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(0, -9.5, 6.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // 9. Face Expression & Creature Eyes
+      const effectiveFace = (faceKey === 'classic' || faceKey === 'plain') ? 'plain' : faceKey;
+      const eyeRadiusX = (effectiveFace === 'big-eyes') ? 1.7 : 1.35;
+      const eyeRadiusY = (effectiveFace === 'big-eyes') ? 2.2 : 1.75;
 
-      // Warm face skin oval
-      ctx.fillStyle = SKIN_TONE;
+      // Glossy creature eyes
+      ctx.fillStyle = '#181A20';
       ctx.beginPath();
-      ctx.ellipse(1.0, -9.0, 5.2, 4.8, 0, 0, Math.PI * 2);
+      ctx.ellipse(-1.8, -7.5, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
-
-      // Hair bangs sweep over top
-      ctx.fillStyle = HAIR_COLOR;
       ctx.beginPath();
-      ctx.moveTo(-6, -11);
-      ctx.bezierCurveTo(-4, -15, 3, -15, 5.5, -11.5);
-      ctx.quadraticCurveTo(2, -12.5, -1, -12);
-      ctx.quadraticCurveTo(-3, -11.5, -6, -11);
-      ctx.closePath();
+      ctx.ellipse(3.2, -7.5, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Ear
-      ctx.fillStyle = SKIN_TONE;
-      ctx.beginPath();
-      ctx.arc(-4.5, -9, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // 6. Eyes & Face Details
-      ctx.fillStyle = '#20232A';
-      ctx.beginPath();
-      ctx.arc(-0.8, -9.5, 1.0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(3.2, -9.5, 1.0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Catchlight twinkles
+      // Main glossy catchlight
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(-0.6, -10.2, 0.6, 0.6);
-      ctx.fillRect(3.4, -10.2, 0.6, 0.6);
+      ctx.beginPath();
+      ctx.arc(-1.3, -8.2, (effectiveFace === 'big-eyes') ? 0.95 : 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(3.7, -8.2, (effectiveFace === 'big-eyes') ? 0.95 : 0.75, 0, Math.PI * 2);
+      ctx.fill();
 
-      // Micro-smile
-      ctx.strokeStyle = '#C97A63';
+      // Micro secondary twinkle catchlight
+      ctx.beginPath();
+      ctx.arc(-2.2, -6.9, 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(2.8, -6.9, 0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute :3 critter mouth
+      ctx.strokeStyle = '#22252A';
       ctx.lineWidth = 1.0;
       ctx.beginPath();
-      ctx.arc(1.2, -7.5, 1.2, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.arc(0.2, -5.2, 0.95, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(1.8, -5.2, 0.95, 0.1 * Math.PI, 0.9 * Math.PI);
       ctx.stroke();
 
-      // Face Customizations
-      const effectiveFace = (faceKey === 'classic' || faceKey === 'plain') ? 'plain' : faceKey;
-      if (effectiveFace === 'glasses' || options.isAgentOpenCode) {
-        ctx.strokeStyle = '#1E293B';
-        ctx.lineWidth = 1.3;
-        ctx.strokeRect(-2.2, -11.2, 3.2, 3.4);
-        ctx.strokeRect(1.8, -11.2, 3.4, 3.4);
-        ctx.beginPath();
-        ctx.moveTo(1.0, -9.6);
-        ctx.lineTo(1.8, -9.6);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillRect(-1.5, -10.6, 1.2, 0.8);
-        ctx.fillRect(2.5, -10.6, 1.2, 0.8);
-      } else if (effectiveFace === 'blush' || options.isAgentC6) {
+      // Face customizations
+      if (effectiveFace === 'blush' || options.isAgentC6) {
         ctx.fillStyle = 'rgba(244, 63, 94, 0.55)';
         ctx.beginPath();
-        ctx.ellipse(-1.2, -7.6, 1.4, 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(-3.8, -5.8, 1.6, 0.9, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(3.4, -7.6, 1.4, 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(5.2, -5.8, 1.6, 0.9, 0, 0, Math.PI * 2);
         ctx.fill();
-      } else if (effectiveFace === 'freckles') {
-        ctx.fillStyle = '#9A5B32';
-        ctx.fillRect(-1.2, -7.8, 0.7, 0.7);
-        ctx.fillRect(1.1, -8.2, 0.7, 0.7);
-        ctx.fillRect(3.2, -7.8, 0.7, 0.7);
       }
 
-      // Forehead Goggles (C6 or goggles/cyborg face option)
-      if (effectiveFace === 'goggles' || effectiveFace === 'cyborg' || options.isAgentC6) {
+      if (effectiveFace === 'sparkle' || options.isAgentGemini) {
+        ctx.save();
+        ctx.fillStyle = '#FBBF24';
+        const drawSparkle = (sx, sy, sr) => {
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - sr);
+          ctx.quadraticCurveTo(sx, sy, sx + sr, sy);
+          ctx.quadraticCurveTo(sx, sy, sx, sy + sr);
+          ctx.quadraticCurveTo(sx, sy, sx - sr, sy);
+          ctx.quadraticCurveTo(sx, sy, sx, sy - sr);
+          ctx.fill();
+        };
+        drawSparkle(5.6, -9.5, 2.2);
+        drawSparkle(-4.2, -6.0, 1.5);
+        ctx.restore();
+      }
+
+      if (effectiveFace === 'antenna') {
+        ctx.save();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(0.5, -15);
+        ctx.quadraticCurveTo(2.0, -18.5, 0.5, -22);
+        ctx.stroke();
+        ctx.fillStyle = '#38BDF8';
+        ctx.beginPath();
+        ctx.arc(0.5, -22.5, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0.0, -23.2, 0.8, 0.8);
+        ctx.restore();
+      }
+
+      if (effectiveFace === 'round-glasses' || effectiveFace === 'glasses' || options.isAgentOpenCode) {
+        ctx.save();
+        ctx.strokeStyle = '#1E293B';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(-1.8, -7.5, 2.6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(3.2, -7.5, 2.6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0.8, -7.5);
+        ctx.lineTo(0.6, -7.5);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillRect(-2.8, -8.8, 1.2, 1.0);
+        ctx.fillRect(2.2, -8.8, 1.2, 1.0);
+        ctx.restore();
+      }
+
+      if (effectiveFace === 'goggles' || effectiveFace === 'cyborg') {
         ctx.save();
         ctx.strokeStyle = '#451A03';
         ctx.lineWidth = 1.4;
         ctx.beginPath();
-        ctx.moveTo(-6.5, -13);
-        ctx.lineTo(5.5, -13);
+        ctx.moveTo(-6, -12);
+        ctx.lineTo(6, -12);
         ctx.stroke();
         ctx.fillStyle = '#92400E';
-        this.drawRoundedRect(ctx, -2.5, -15.5, 3.5, 3.5, 1, true, true);
-        this.drawRoundedRect(ctx, 1.8, -15.5, 3.5, 3.5, 1, true, true);
+        this.drawRoundedRect(ctx, -2.5, -14.5, 3.2, 3.2, 1, true, true);
+        this.drawRoundedRect(ctx, 1.8, -14.5, 3.2, 3.2, 1, true, true);
         ctx.fillStyle = '#38BDF8';
-        ctx.fillRect(-1.8, -14.8, 2.1, 2.1);
-        ctx.fillRect(2.5, -14.8, 2.1, 2.1);
+        ctx.fillRect(-1.8, -13.8, 1.8, 1.8);
+        ctx.fillRect(2.5, -13.8, 1.8, 1.8);
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(-1.2, -14.4, 0.8, 0.8);
-        ctx.fillRect(3.1, -14.4, 0.8, 0.8);
+        ctx.fillRect(-1.2, -13.5, 0.7, 0.7);
+        ctx.fillRect(3.1, -13.5, 0.7, 0.7);
         ctx.restore();
       }
 
-      // 7. Hats & Headgear
+      // 10. Hats & Headgear
       if (hatKey && hatKey !== 'none') {
         this.drawHat(ctx, hatKey);
       }
 
-      // 8. Front Arm & Carried Items
+      // 11. Front Arm / Paw & Carried Items
       if (papers || heldItem) {
-        ctx.fillStyle = SUIT_BASE;
-        this.drawRoundedRect(ctx, 1.5, -2, 3.8, 5.5, 1.8, true, true);
-        this.drawRoundedRect(ctx, 3.5, 1, 5, 3.2, 1.5, true, true);
         ctx.fillStyle = pal.fill;
-        ctx.fillRect(3.5, 1, 1.5, 3.2);
-        ctx.fillStyle = SKIN_TONE;
-        this.drawRoundedRect(ctx, 7.5, 1, 2.5, 2.8, 1, true, true);
-        if (papers) this.drawPapersStack(ctx, 7, -1);
-        else if (heldItem) {
+        ctx.strokeStyle = '#22252A';
+        ctx.lineWidth = 1.5;
+        this.drawRoundedRect(ctx, 2.5, 0.5, 5, 3.5, 1.7, true, true);
+        if (papers) {
+          this.drawPapersStack(ctx, 6.5, -1.5);
+        } else if (heldItem) {
           if (options.sipping) {
             ctx.save();
-            ctx.translate(6, -6);
+            ctx.translate(4.5, -4.5);
             ctx.rotate(-0.35);
             this.drawCarriedDrink(ctx, 0, 0, heldItem);
             ctx.fillStyle = '#FFD700';
-            ctx.fillRect(4, -4, 2, 2);
+            ctx.beginPath();
+            ctx.arc(3.5, -2, 1.2, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
           } else {
-            this.drawCarriedDrink(ctx, 8, 0, heldItem);
+            this.drawCarriedDrink(ctx, 7, 0, heldItem);
           }
         }
       } else {
-        ctx.fillStyle = SUIT_BASE;
-        this.drawRoundedRect(ctx, 2.5 + frontArmOffset, -2, 3.6, 7.5, 1.8, true, true);
         ctx.fillStyle = pal.fill;
-        ctx.fillRect(2.5 + frontArmOffset, 3.5, 3.6, 1.2);
-        ctx.fillStyle = SKIN_TONE;
-        this.drawRoundedRect(ctx, 2.5 + frontArmOffset, 4.5, 3.5, 2.5, 1.2, true, true);
+        ctx.strokeStyle = '#22252A';
+        ctx.lineWidth = 1.5;
+        this.drawRoundedRect(ctx, 3.5 + frontArmOffset, 0, 3.8, 6.8, 1.8, true, true);
       }
 
       ctx.restore();

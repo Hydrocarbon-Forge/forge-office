@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-07T04:28:58.197663+00:00",
-  "updated_ts": 1791347338.197663,
+  "updated": "2026-10-07T12:44:58.208252+00:00",
+  "updated_ts": 1791377098.208252,
   "stock": {
     "label": "STOCKS",
     "subtitle": "aggressive high R:R",
@@ -63,61 +63,40 @@
   "crypto": {
     "label": "CRYPTO",
     "subtitle": "aggressive high R:R, 24/7",
-    "equity": 97.78,
+    "equity": 98.42,
     "start": 100.0,
-    "total_pnl": -2.22,
-    "total_pct": -2.22,
-    "day_pnl": -1.08,
-    "day_pct": -1.09,
-    "cash": 0.0,
-    "cash_pct": 0.0,
-    "total_fees": 0.35,
+    "total_pnl": -1.58,
+    "total_pct": -1.58,
+    "day_pnl": -0.44,
+    "day_pct": -0.45,
+    "cash": 24.57,
+    "cash_pct": 25.0,
+    "total_fees": 0.62,
     "tax_rate": 0.15,
     "taxable_gains": 0.0,
     "capital_gains_tax": 0.0,
-    "real_total": 97.78,
-    "taxed_total": 97.78,
+    "real_total": 98.42,
+    "taxed_total": 98.42,
     "holdings": [
       {
-        "sym": "BTC",
-        "qty": 0.0003,
-        "px": 84107.0,
-        "val": 25.23,
-        "w": 25.8
-      },
-      {
         "sym": "AVAX",
-        "qty": 2.2034,
-        "px": 11.0,
-        "val": 24.24,
-        "w": 24.8
-      },
-      {
-        "sym": "SOL",
-        "qty": 0.2048,
-        "px": 118.24,
-        "val": 24.22,
-        "w": 24.8
-      },
-      {
-        "sym": "LINK",
-        "qty": 1.7755,
-        "px": 13.57,
-        "val": 24.1,
-        "w": 24.6
+        "qty": 6.6442,
+        "px": 11.12,
+        "val": 73.85,
+        "w": 75.0
       }
     ],
     "trades_now": [
       {
-        "sym": "LINK",
-        "act": "buy",
-        "qty": 1.2492,
-        "px": 13.59,
-        "reason": "conviction entry/top-up",
+        "sym": "AVAX",
+        "act": "sell",
+        "qty": 2.2147,
+        "px": 11.1,
+        "reason": "forced trim (weakest)",
         "fee": 0.02
       }
     ],
-    "n_trades": 31,
+    "n_trades": 44,
     "quotes_ok": 7,
     "quotes_total": 9
   },

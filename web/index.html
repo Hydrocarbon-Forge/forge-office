@@ -27,6 +27,7 @@
       <button id="micBtn" class="hud-btn">🎤 MIC (V)</button>
       <button id="clockBtn" class="hud-btn">⏱️ CLOCK (K)</button>
       <button id="wardrobeBtn" class="hud-btn">👔 WARDROBE (C)</button>
+      <button id="projectorSettingsBtn" class="hud-btn hidden" style="border-color: #38BDF8; color: #38BDF8;" title="Projector Presentation Settings">⚙️ PRESENT</button>
       <button id="settingsBtn" class="hud-btn">⚙️ SETTINGS</button>
       <button id="lightsBtn" class="hud-btn hidden" style="display:none;" title="Lighting Mode (N)">💡 LIGHTS: office</button>
     </div>
@@ -101,13 +102,6 @@
         <label class="lights-checkbox-label">
           <input type="checkbox" id="startMicCheckbox">
           <span>Enable Mic (Proximity Voice)</span>
-        </label>
-      </div>
-
-      <div class="voice-setting-row" style="margin-top: 4px;">
-        <label class="lights-checkbox-label">
-          <input type="checkbox" id="startMonitorCheckbox" checked>
-          <span>Self-Monitor (Hear Yourself)</span>
         </label>
       </div>
 
@@ -446,6 +440,15 @@
         <div class="dock-status-row">
           <span class="status-dot green"></span>
           <span id="dockStatusLabel">You are docked to the meeting room projector</span>
+        </div>
+        <div id="projectorScreenContainer" class="projector-screen-container" style="margin: 12px 0; background: #0B0F19; border: 1px solid #1E293B; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 220px; position: relative;">
+          <video id="projectorVideo" autoplay playsinline muted style="width: 100%; max-height: 260px; object-fit: contain; display: none;"></video>
+          <div id="projectorPlaceholder" class="projector-placeholder" style="padding: 24px; text-align: center; color: #94A3B8; font-family: monospace;">
+            <div id="projectorPlaceholderIcon" style="font-size: 32px; margin-bottom: 8px;">📽️</div>
+            <div id="projectorPlaceholderText" style="font-size: 13px; font-weight: bold; color: #E2E8F0;">No presentation active</div>
+            <div id="projectorPlaceholderSub" style="font-size: 11px; color: #64748B; margin-top: 4px;">Click Share Screen to capture your Chrome window or tab.</div>
+            <button id="projectorShareRetryBtn" class="action-btn" style="margin-top: 12px; display: inline-block;">🖥️ Share Screen</button>
+          </div>
         </div>
         <div class="topic-row">
           <label for="presenterTopicInput">Presentation Topic / Action</label>

@@ -71,9 +71,9 @@
       }
     }
 
-    sendMove(x, y, dir, facing, heldDrink = null, sipping = false) {
+    sendMove(x, y, dir, facing, heldItem = null, sipping = false, force = false) {
       const now = performance.now();
-      if (now - this.lastMoveSendTime < this.moveSendInterval) return;
+      if (!force && (now - this.lastMoveSendTime < this.moveSendInterval)) return;
       this.lastMoveSendTime = now;
 
       this.send({
@@ -82,7 +82,8 @@
         y: Math.round(y),
         dir: dir,
         facing: facing,
-        heldDrink: heldDrink,
+        heldItem: heldItem,
+        heldDrink: heldItem,
         sipping: !!sipping
       });
     }
@@ -139,16 +140,28 @@
       this.send({ type: 'typing-board-input', ...data });
     }
 
-    sendProjectorDock(action) {
-      this.send({ type: 'projector-dock', action });
+    sendProjectorDock(payload) {
+      if (typeof payload === 'string') {
+        this.send({ type: 'projector-dock', action: payload });
+      } else if (payload && typeof payload === 'object') {
+        this.send({ type: 'projector-dock', ...payload });
+      } else {
+        this.send({ type: 'projector-dock' });
+      }
     }
 
     sendProjectorUndock() {
       this.send({ type: 'projector-undock' });
     }
 
-    sendProjectorAction(action) {
-      this.send({ type: 'projector-action', action });
+    sendProjectorAction(payload) {
+      if (typeof payload === 'string') {
+        this.send({ type: 'projector-action', action: payload });
+      } else if (payload && typeof payload === 'object') {
+        this.send({ type: 'projector-action', ...payload });
+      } else {
+        this.send({ type: 'projector-action' });
+      }
     }
 
     handleMessage(msg) {
@@ -203,7 +216,13 @@
             remote.dir = msg.dir;
             remote.facing = msg.facing !== undefined ? msg.facing : remote.facing;
             remote.isMoving = msg.dir !== 'idle';
-            if (msg.heldDrink !== undefined) remote.heldDrink = msg.heldDrink;
+            if (msg.heldItem !== undefined) {
+              remote.heldItem = msg.heldItem;
+              remote.heldDrink = msg.heldItem;
+            } else if (msg.heldDrink !== undefined) {
+              remote.heldDrink = msg.heldDrink;
+              remote.heldItem = msg.heldDrink;
+            }
             if (msg.sipping !== undefined) remote.isSipping = msg.sipping;
           }
           break;

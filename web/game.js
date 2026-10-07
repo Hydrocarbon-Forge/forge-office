@@ -17,9 +17,9 @@
       } catch {}
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'plain' },
-        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'plain' },
-        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'plain' }
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'big-eyes' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'round-glasses' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'blush' }
       };
 
       let initialCosmetics = Object.assign({}, defaultCosmetics[savedProfile] || defaultCosmetics.nathan);
@@ -110,12 +110,16 @@
       this.nearDrinkStation = false;
 
       // Round 6: Carry and interaction states
+      this.player.heldItem = null;
       this.player.heldDrink = null;
       this.player.isSipping = false;
       this.player.sipTimer = 0;
       this.isCoffeeBrewing = false;
       this.coffeeBrewTimer = 0;
       this.isProjectorDocked = false;
+      this.screenStream = null;
+      this.screenVideo = null;
+      this.isScreenShareActive = false;
 
       // Round 6: Modals open state
       this.settingsModalOpen = false;
@@ -229,6 +233,22 @@
 
     setupInput() {
       window.addEventListener('keydown', (e) => {
+        const isInput = e.target && (
+          e.target.tagName === 'INPUT' ||
+          e.target.tagName === 'TEXTAREA' ||
+          (typeof e.target.closest === 'function' && e.target.closest('input, textarea'))
+        );
+
+        if (isInput && e.key !== 'Escape') {
+          return;
+        }
+
+        if (isInput && e.key === 'Escape') {
+          if (typeof e.target.blur === 'function') {
+            e.target.blur();
+          }
+        }
+
         this.keys[e.key.toLowerCase()] = true;
         this.keys[e.code] = true;
 
@@ -283,6 +303,12 @@
       });
 
       window.addEventListener('keyup', (e) => {
+        const isInput = e.target && (
+          e.target.tagName === 'INPUT' ||
+          e.target.tagName === 'TEXTAREA' ||
+          (typeof e.target.closest === 'function' && e.target.closest('input, textarea'))
+        );
+        if (isInput) return;
         this.keys[e.key.toLowerCase()] = false;
         this.keys[e.code] = false;
       });
@@ -324,6 +350,16 @@
           this.inspectProject(this.nearBox.project);
         } else if (this.nearDesk && this.agents && !this.activeInspection) {
           this.agents.interactWithC6(sfx, this.liveData, this.sessionStartTime);
+        } else if ((this.nearProjectorDock || this.isProjectorDocked) && !this.activeInspection) {
+          const rect = this.canvas.getBoundingClientRect();
+          const screenX = e.clientX - rect.left;
+          const screenY = e.clientY - rect.top;
+          const worldX = (screenX - this.canvas.width / 2) / (this.camera.zoom || 1.0) + this.camera.x;
+          const worldY = (screenY - this.canvas.height / 2) / (this.camera.zoom || 1.0) + this.camera.y;
+          const distToProjector = Math.hypot(worldX - (38 * 32), worldY - (17 * 32));
+          if (distToProjector < 120) {
+            this.toggleProjectorModal();
+          }
         }
       });
     }
@@ -601,7 +637,7 @@
       if (this.net) {
         this.net.update(dt);
         const dir = this.player.isMoving ? (this.player.facing >= 0 ? 'right' : 'left') : 'idle';
-        this.net.sendMove(this.player.x, this.player.y, dir, this.player.facing, this.player.heldDrink, this.player.isSipping);
+        this.net.sendMove(this.player.x, this.player.y, dir, this.player.facing, this.player.heldItem || this.player.heldDrink, this.player.isSipping);
       }
 
       // 3b. Coffee Brewing timer
@@ -612,13 +648,13 @@
         }
         if (this.coffeeBrewTimer <= 0) {
           this.isCoffeeBrewing = false;
-          this.player.heldDrink = {
+          this.setHeldItem({
             name: 'Fresh Espresso',
             icon: '☕',
             color: '#451A03',
+            drink: true,
             source: 'coffee'
-          };
-          this.updateCarrySlotUI();
+          });
           sfx.playChime();
           this.showNotification('Fresh Espresso brewed! [Press Q to drink]');
         }
@@ -628,9 +664,7 @@
       if (this.isProjectorDocked) {
         const dockDist = Math.hypot(this.player.x - (36.5 * 32), this.player.y - (19 * 32));
         if (dockDist > 85) {
-          this.isProjectorDocked = false;
-          if (this.net) this.net.sendProjectorUndock();
-          this.showNotification('Walked away — projector undocked');
+          this.undockProjector('Walked away — projector undocked');
         }
       }
 
@@ -793,9 +827,8 @@
         p.sipTimer -= dt;
         if (p.sipTimer <= 0) {
           p.isSipping = false;
-          const finishedName = p.heldDrink ? p.heldDrink.name : 'drink';
-          p.heldDrink = null;
-          this.updateCarrySlotUI();
+          const finishedName = (p.heldItem && p.heldItem.name) || (p.heldDrink && p.heldDrink.name) || 'drink';
+          this.setHeldItem(null);
           this.showNotification(`Finished ${finishedName}! Refreshed.`);
           sfx.playDrinkSip();
         }
@@ -844,6 +877,15 @@
 
       // 4. Projector dock (around 36.5 * 32, 19 * 32)
       this.nearProjectorDock = Math.hypot(px - (36.5 * 32), py - (19 * 32)) < 52;
+      const projSettingsBtn = document.getElementById('projectorSettingsBtn');
+      if (projSettingsBtn) {
+        if (this.nearProjectorDock || this.isProjectorDocked) {
+          projSettingsBtn.classList.remove('hidden');
+        } else {
+          projSettingsBtn.classList.add('hidden');
+        }
+      }
+      this.liveData.localScreenVideo = this.screenVideo;
 
       // 5. Break room coffee maker (4 * 32 + 16, 14 * 32 + 16)
       this.nearCoffeeMaker = Math.hypot(px - (4 * 32 + 16), py - (14 * 32 + 16)) < 50;
@@ -967,8 +1009,8 @@
             face: remote.cosmetics.face,
             facing: remote.facing,
             isMoving: remote.isMoving,
-            heldDrink: remote.heldDrink,
-            heldItem: remote.heldItem,
+            heldDrink: remote.heldItem || remote.heldDrink,
+            heldItem: remote.heldItem || remote.heldDrink,
             sipping: remote.isSipping,
             frame: remote.isMoving ? walkFrame : 0
           });
@@ -983,8 +1025,8 @@
         face: this.player.cosmetics.face,
         facing: this.player.facing,
         isMoving: this.player.isMoving,
-        heldDrink: this.player.heldDrink,
-        heldItem: this.player.heldItem,
+        heldDrink: this.player.heldItem || this.player.heldDrink,
+        heldItem: this.player.heldItem || this.player.heldDrink,
         sipping: this.player.isSipping,
         frame: this.player.isMoving ? walkFrame : 0
       });
@@ -1008,7 +1050,13 @@
         this.renderGenericPrompt(ctx, 41.1 * 32, 16.5 * 32 - 20, '[E] Shared Typing Board', 'Multiplayer ledger');
       } else if (this.nearProjectorDock && !this.activeInspection) {
         const isDocked = this.isProjectorDocked;
-        this.renderGenericPrompt(ctx, 36.5 * 32, 19 * 32 - 22, isDocked ? '[E] Projector Settings' : '[E] Dock to Projector', 'Screen share to room');
+        this.renderGenericPrompt(
+          ctx,
+          36.5 * 32,
+          19 * 32 - 22,
+          isDocked ? '[E] Undock Screen' : '[E] Dock & Share Screen',
+          isDocked ? 'Click ⚙ PRESENT for options' : 'Share Chrome screen to room'
+        );
       } else if (this.nearCoffeeMaker && !this.activeInspection) {
         this.renderGenericPrompt(ctx, 4 * 32 + 16, 14 * 32 - 16, this.isCoffeeBrewing ? '☕ Brewing Espresso...' : '[E] Brew Fresh Espresso', 'Fresh roast coffee');
       } else if (this.nearDrinkStation && !this.activeInspection) {
@@ -1173,9 +1221,9 @@
       const guestPreview = document.getElementById('guestAvatarPreview');
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'plain' },
-        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'plain' },
-        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'plain' }
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'big-eyes' },
+        gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'round-glasses' },
+        guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'blush' }
       };
 
       // Draw card previews
@@ -1192,9 +1240,9 @@
         });
       };
 
-      drawCardPreview(nathanPreview, 'teal', 'cap', 'plain');
-      drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'plain');
-      drawCardPreview(guestPreview, 'coral', 'cap', 'plain');
+      drawCardPreview(nathanPreview, 'teal', 'cap', 'big-eyes');
+      drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'round-glasses');
+      drawCardPreview(guestPreview, 'coral', 'cap', 'blush');
 
       const renderPreview = () => {
         if (!previewCanvas) return;
@@ -1283,11 +1331,6 @@
         this.gameStarted = true;
         sfx.playChime();
         this.showNotification(`Welcome to Forge Office, ${this.player.name}!`);
-
-        const startMonitorCheckbox = document.getElementById('startMonitorCheckbox');
-        if (startMonitorCheckbox && this.voice) {
-          this.voice.setSelfMonitor(startMonitorCheckbox.checked);
-        }
 
         const startMicCheckbox = document.getElementById('startMicCheckbox');
         if (startMicCheckbox && startMicCheckbox.checked && this.voice) {
@@ -2066,12 +2109,25 @@
       }
     }
 
+    setHeldItem(item) {
+      this.player.heldItem = item;
+      this.player.heldDrink = item;
+      this.updateCarrySlotUI();
+      if (this.net) {
+        this.net.sendMove(this.player.x, this.player.y, 'idle', this.player.facing, item, this.player.isSipping, true);
+      }
+    }
+
     sipDrink() {
-      if (!this.player.heldDrink || this.player.isSipping) return;
+      const item = this.player.heldItem || this.player.heldDrink;
+      if (!item || this.player.isSipping) return;
       this.player.isSipping = true;
       this.player.sipTimer = 1.0;
       sfx.playDrinkSip();
-      this.showNotification(`Sipping ${this.player.heldDrink.name}...`);
+      this.showNotification(`Sipping ${item.name}...`);
+      if (this.net) {
+        this.net.sendMove(this.player.x, this.player.y, 'idle', this.player.facing, item, true, true);
+      }
     }
 
     updateCarrySlotUI() {
@@ -2079,10 +2135,11 @@
       const icon = document.getElementById('carryItemIcon');
       const text = document.getElementById('carryItemText');
       if (!pill) return;
-      if (this.player.heldDrink) {
+      const item = this.player.heldItem || this.player.heldDrink;
+      if (item) {
         pill.classList.remove('hidden');
-        if (icon) icon.innerText = this.player.heldDrink.icon || '🥤';
-        if (text) text.innerText = this.player.heldDrink.name || 'Drink';
+        if (icon) icon.innerText = item.icon || '🥤';
+        if (text) text.innerText = item.name || 'Drink';
       } else {
         pill.classList.add('hidden');
       }
@@ -2192,6 +2249,7 @@
       }
 
       this.updateSettingsUI = updateSettingsUI;
+      updateSettingsUI();
     }
 
     toggleSettingsModal(force) {
@@ -2302,7 +2360,11 @@
         const endDraw = () => {
           if (!isDrawing) return;
           isDrawing = false;
-          if (currentStroke && currentStroke.points.length > 1) {
+          if (currentStroke && currentStroke.points && currentStroke.points.length >= 1) {
+            if (currentStroke.points.length === 1) {
+              const ctx = canvas.getContext('2d');
+              this.drawWhiteboardStroke(ctx, currentStroke);
+            }
             if (!this.liveData.whiteboardStrokes) this.liveData.whiteboardStrokes = [];
             this.liveData.whiteboardStrokes.push(currentStroke);
             if (this.liveData.whiteboardStrokes.length > 500) {
@@ -2321,6 +2383,31 @@
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e); }, { passive: false });
         canvas.addEventListener('touchmove', (e) => { e.preventDefault(); moveDraw(e); }, { passive: false });
         canvas.addEventListener('touchend', endDraw);
+      }
+    }
+
+    drawWhiteboardStroke(ctx, stroke) {
+      if (!stroke || !stroke.points || stroke.points.length === 0) return;
+      const color = stroke.color || '#1E293B';
+      const width = stroke.width || 3;
+      if (stroke.points.length === 1) {
+        const pt = stroke.points[0];
+        const r = Math.max(2.5, width / 2);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
       }
     }
 
@@ -2351,18 +2438,9 @@
       }
       if (this.whiteboardModalOpen) {
         const canvas = document.getElementById('whiteboardCanvas');
-        if (canvas && stroke.points && stroke.points.length > 1) {
+        if (canvas && stroke.points && stroke.points.length >= 1) {
           const ctx = canvas.getContext('2d');
-          ctx.strokeStyle = stroke.color || '#1E293B';
-          ctx.lineWidth = stroke.width || 3;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.beginPath();
-          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-          for (let i = 1; i < stroke.points.length; i++) {
-            ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-          }
-          ctx.stroke();
+          this.drawWhiteboardStroke(ctx, stroke);
         }
       }
     }
@@ -2388,17 +2466,8 @@
 
       const strokes = this.liveData.whiteboardStrokes || [];
       for (const strk of strokes) {
-        if (!strk.points || strk.points.length < 2) continue;
-        ctx.strokeStyle = strk.color || '#1E293B';
-        ctx.lineWidth = strk.width || 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(strk.points[0].x, strk.points[0].y);
-        for (let i = 1; i < strk.points.length; i++) {
-          ctx.lineTo(strk.points[i].x, strk.points[i].y);
-        }
-        ctx.stroke();
+        if (!strk.points || strk.points.length < 1) continue;
+        this.drawWhiteboardStroke(ctx, strk);
       }
     }
 
@@ -2501,22 +2570,31 @@
       const updateTopicBtn = document.getElementById('updateTopicBtn');
       const topicInput = document.getElementById('presenterTopicInput');
       const chips = document.querySelectorAll('.topic-chip');
+      const retryBtn = document.getElementById('projectorShareRetryBtn');
+      const projSettingsBtn = document.getElementById('projectorSettingsBtn');
 
       if (closeBtn) closeBtn.addEventListener('click', () => this.toggleProjectorModal(false));
 
+      if (projSettingsBtn) {
+        projSettingsBtn.addEventListener('click', () => this.toggleProjectorModal());
+      }
+
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          this.startScreenShare();
+        });
+      }
+
       if (undockBtn) {
         undockBtn.addEventListener('click', () => {
-          this.isProjectorDocked = false;
-          if (this.net) this.net.sendProjectorUndock();
-          this.showNotification('Undocked from projector');
-          this.toggleProjectorModal(false);
+          this.undockProjector('Undocked from projector');
         });
       }
 
       if (updateTopicBtn && topicInput) {
         updateTopicBtn.addEventListener('click', () => {
           const topic = topicInput.value.trim() || 'Architecture Review';
-          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: topic });
+          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: topic, screenShareActive: this.isScreenShareActive });
           this.showNotification(`Projector presentation updated: "${topic}"`);
           this.toggleProjectorModal(false);
         });
@@ -2525,7 +2603,7 @@
       chips.forEach((c) => {
         c.addEventListener('click', () => {
           if (topicInput) topicInput.value = c.dataset.topic || '';
-          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: c.dataset.topic });
+          if (this.net) this.net.sendProjectorAction({ action: 'topic', topic: c.dataset.topic, screenShareActive: this.isScreenShareActive });
           this.showNotification(`Projector presentation updated: "${c.dataset.topic}"`);
           this.toggleProjectorModal(false);
         });
@@ -2533,21 +2611,151 @@
     }
 
     handleProjectorDock() {
+      if (this.isProjectorDocked) {
+        // E key while docked -> UNDOCK directly!
+        this.undockProjector('Undocked from projector');
+      } else {
+        // E key while not docked -> DOCK!
+        this.dockProjector();
+      }
+    }
+
+    async dockProjector() {
       const pres = this.liveData.projectorPresenter;
       if (pres && this.net && pres.id !== this.net.myId) {
         this.showNotification(`Projector is busy (${pres.name} is currently presenting)`);
         sfx.playUiTick();
         return;
       }
-      if (this.isProjectorDocked) {
-        this.toggleProjectorModal(true);
-        return;
-      }
       this.isProjectorDocked = true;
-      if (this.net) this.net.sendProjectorDock({ topic: 'Live Architecture Review' });
+      const topicInput = document.getElementById('presenterTopicInput');
+      const topic = (topicInput && topicInput.value.trim()) || 'Live Architecture Review';
+      if (this.net) {
+        this.net.sendProjectorDock({ topic: topic, screenShareActive: false });
+      }
       this.showNotification('Docked to projector! Screen shared to meeting room.');
       sfx.playChime();
-      this.toggleProjectorModal(true);
+      await this.startScreenShare();
+    }
+
+    async startScreenShare() {
+      const videoEl = document.getElementById('projectorVideo');
+      const placeholder = document.getElementById('projectorPlaceholder');
+      const placeholderText = document.getElementById('projectorPlaceholderText');
+      const placeholderSub = document.getElementById('projectorPlaceholderSub');
+      const retryBtn = document.getElementById('projectorShareRetryBtn');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        console.warn('getDisplayMedia not supported in this environment');
+        if (placeholderText) placeholderText.innerText = 'Screen sharing unsupported';
+        if (placeholderSub) placeholderSub.innerText = 'navigator.mediaDevices.getDisplayMedia unavailable.';
+        if (retryBtn) retryBtn.style.display = 'none';
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 15 }
+        });
+
+        this.screenStream = stream;
+        this.isScreenShareActive = true;
+
+        if (videoEl) {
+          videoEl.srcObject = stream;
+          videoEl.style.display = 'block';
+          videoEl.play().catch(() => {});
+          this.screenVideo = videoEl;
+        }
+        if (placeholder) {
+          placeholder.style.display = 'none';
+        }
+
+        if (this.net) {
+          const topicInput = document.getElementById('presenterTopicInput');
+          const topic = (topicInput && topicInput.value.trim()) || 'Live Architecture Review';
+          this.net.sendProjectorAction({ topic: topic, screenShareActive: true });
+        }
+        this.showNotification('Chrome screen share active!');
+
+        const tracks = stream.getVideoTracks();
+        if (tracks.length > 0) {
+          tracks[0].addEventListener('ended', () => {
+            this.handleScreenShareEnded('External stop — screen share ended');
+          });
+        }
+      } catch (err) {
+        console.warn('Screen share cancelled or failed:', err);
+        this.isScreenShareActive = false;
+        if (videoEl) {
+          videoEl.style.display = 'none';
+          videoEl.srcObject = null;
+        }
+        if (placeholder) {
+          placeholder.style.display = 'block';
+        }
+        if (placeholderText) {
+          placeholderText.innerText = 'Screen share cancelled';
+        }
+        if (placeholderSub) {
+          placeholderSub.innerText = 'Still docked to projector. Click below to retry.';
+        }
+        if (retryBtn) {
+          retryBtn.style.display = 'inline-block';
+        }
+        this.showNotification('Screen share cancelled — still docked, showing placeholder');
+      }
+    }
+
+    handleScreenShareEnded(reason) {
+      if (!this.isProjectorDocked) return;
+      this.undockProjector(reason || 'Screen share ended');
+    }
+
+    undockProjector(reason) {
+      if (this.screenStream) {
+        try {
+          this.screenStream.getTracks().forEach((t) => t.stop());
+        } catch {}
+        this.screenStream = null;
+      }
+      this.isScreenShareActive = false;
+      this.screenVideo = null;
+
+      const videoEl = document.getElementById('projectorVideo');
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.srcObject = null;
+        videoEl.style.display = 'none';
+      }
+      const placeholder = document.getElementById('projectorPlaceholder');
+      if (placeholder) {
+        placeholder.style.display = 'block';
+      }
+      const placeholderText = document.getElementById('projectorPlaceholderText');
+      if (placeholderText) {
+        placeholderText.innerText = 'No presentation active';
+      }
+      const placeholderSub = document.getElementById('projectorPlaceholderSub');
+      if (placeholderSub) {
+        placeholderSub.innerText = 'Click Share Screen to capture your Chrome window or tab.';
+      }
+      const retryBtn = document.getElementById('projectorShareRetryBtn');
+      if (retryBtn) {
+        retryBtn.style.display = 'inline-block';
+      }
+
+      if (this.isProjectorDocked) {
+        this.isProjectorDocked = false;
+        if (this.net) this.net.sendProjectorUndock();
+      }
+
+      this.toggleProjectorModal(false);
+
+      if (reason) {
+        this.showNotification(reason);
+      }
+      sfx.playUiTick();
     }
 
     toggleProjectorModal(force) {
@@ -2566,13 +2774,23 @@
     setProjectorPresenter(presenter) {
       this.liveData.projectorPresenter = presenter;
       if (!presenter && this.isProjectorDocked) {
-        this.isProjectorDocked = false;
+        this.undockProjector();
+      }
+      const dockStatusLabel = document.getElementById('dockStatusLabel');
+      if (dockStatusLabel) {
+        if (presenter) {
+          dockStatusLabel.innerText = presenter.id === (this.net && this.net.myId) ?
+            `You are presenting: "${presenter.action || ''}"` :
+            `${presenter.name} is presenting: "${presenter.action || ''}"`;
+        } else {
+          dockStatusLabel.innerText = 'Projector is available to present';
+        }
       }
     }
 
     handleProjectorBusy(msg) {
-      this.isProjectorDocked = false;
-      this.showNotification(msg.reason || 'Projector is currently busy');
+      this.undockProjector();
+      this.showNotification(msg.reason || (msg.dockedBy ? `Projector is busy (${msg.dockedBy} is presenting)` : 'Projector is currently busy'));
       sfx.playUiTick();
     }
 
@@ -2598,13 +2816,13 @@
             sfx.playCoin();
             setTimeout(() => {
               if (statusBox) statusBox.classList.add('hidden');
-              this.player.heldDrink = {
+              this.setHeldItem({
                 name: drinkName,
                 color: drinkColor,
                 icon: drinkIcon,
+                drink: true,
                 source: 'vending'
-              };
-              this.updateCarrySlotUI();
+              });
               sfx.playChime();
               this.showNotification(`Dispensed ${drinkName}! [Press Q to drink]`);
               this.toggleVendingModal(false);
@@ -2645,13 +2863,13 @@
             const name = slot.dataset.drink;
             const color = slot.dataset.color;
             const icon = slot.dataset.icon;
-            this.player.heldDrink = {
+            this.setHeldItem({
               name,
               color,
               icon,
+              drink: true,
               source: 'fridge'
-            };
-            this.updateCarrySlotUI();
+            });
             sfx.playChime();
             this.showNotification(`Grabbed chilled ${name} from fridge! [Press Q to drink]`);
             this.toggleFridgeModal(false);
@@ -2661,10 +2879,10 @@
 
       if (retBtn) {
         retBtn.addEventListener('click', () => {
-          if (!this.player.heldDrink) return;
-          const retName = this.player.heldDrink.name;
-          this.player.heldDrink = null;
-          this.updateCarrySlotUI();
+          const item = this.player.heldItem || this.player.heldDrink;
+          if (!item) return;
+          const retName = item.name;
+          this.setHeldItem(null);
           sfx.playUiTick();
           this.showNotification(`Returned ${retName} to fridge.`);
           this.toggleFridgeModal(false);
@@ -2680,10 +2898,11 @@
         modal.classList.remove('hidden');
         const retBox = document.getElementById('fridgeReturnSection');
         const heldName = document.getElementById('fridgeHeldItemName');
+        const item = this.player.heldItem || this.player.heldDrink;
         if (retBox) {
-          if (this.player.heldDrink) {
+          if (item) {
             retBox.classList.remove('hidden');
-            if (heldName) heldName.innerText = this.player.heldDrink.name;
+            if (heldName) heldName.innerText = item.name;
           } else {
             retBox.classList.add('hidden');
           }
@@ -2755,13 +2974,13 @@
             brewBtn.disabled = false;
             const addins = getCheckedAddins();
             const displayName = addins.length ? `${selectedBase.name} + ${addins.join(', ')}` : selectedBase.name;
-            this.player.heldDrink = {
+            this.setHeldItem({
               name: displayName,
               color: selectedBase.color,
               icon: selectedBase.icon,
+              drink: true,
               source: 'station'
-            };
-            this.updateCarrySlotUI();
+            });
             sfx.playChime();
             this.showNotification(`Brewed custom ${displayName}! [Press Q to drink]`);
             this.toggleDrinkStationModal(false);
@@ -2865,13 +3084,13 @@
           const baseBtn = document.querySelector(`.station-opt-btn[data-base="${pr.base}"]`);
           const icon = baseBtn ? baseBtn.dataset.icon : '☕';
           const color = baseBtn ? baseBtn.dataset.color : '#78350F';
-          this.player.heldDrink = {
+          this.setHeldItem({
             name: pr.name,
             icon: icon,
             color: color,
+            drink: true,
             source: 'station'
-          };
-          this.updateCarrySlotUI();
+          });
           sfx.playChime();
           this.showNotification(`Brewed saved preset "${pr.name}"! [Press Q to drink]`);
           this.toggleDrinkStationModal(false);

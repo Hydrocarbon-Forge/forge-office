@@ -13,6 +13,13 @@
   let currentChordIdx = 0;
   let vinylSource = null;
   let musicRunning = false;
+  let loadedSections = [];
+  let currentSectionIdx = -1;
+  let activeSourceNode = null;
+  let activeGainNode = null;
+  let nextSectionTimeout = null;
+  let isUsingFileMusic = false;
+  let isLoadingSections = false;
 
   const JAZZ_CHORDS = [
     // 1. Dm9: D2 bass; F3, A3, C4, E4
@@ -105,16 +112,139 @@
   }
 
   // -------------------------------------------------------------------------
-  // Procedural Background Music ("Jazz-Café" Vibe) Engine
+  // Background Music: Sectioned File Playback + Crossfade (with Procedural Fallback)
   // -------------------------------------------------------------------------
-  function startMusicEngine() {
-    if (!audioCtx || musicRunning) return;
-    musicRunning = true;
+  async function loadMusicSections() {
+    if (loadedSections.length > 0) return loadedSections;
+    if (isLoadingSections) return [];
+    isLoadingSections = true;
+
+    let trackUrls = [];
+    try {
+      const resp = await fetch('/api/office/music');
+      const data = await resp.json();
+      if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
+        trackUrls = data.tracks;
+      }
+    } catch {}
+
+    if (trackUrls.length === 0) {
+      trackUrls = [
+        '/music/section-01.mp3',
+        '/music/section-02.mp3',
+        '/music/section-03.mp3',
+        '/music/section-04.mp3'
+      ];
+    }
+
+    const loaded = [];
+    for (const url of trackUrls) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const arrayBuf = await res.arrayBuffer();
+        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+        loaded.push({ url, buffer: audioBuf });
+      } catch (err) {
+        console.warn(`Failed to decode music section ${url}:`, err);
+      }
+    }
+
+    loadedSections = loaded;
+    isLoadingSections = false;
+    return loadedSections;
+  }
+
+  function playRandomSection() {
+    if (!audioCtx || !musicBusGain || loadedSections.length === 0 || !musicRunning) return;
+
+    // Random section selection, avoiding immediate repeat of the last-played
+    let nextIdx = 0;
+    if (loadedSections.length > 1) {
+      const candidates = [];
+      for (let i = 0; i < loadedSections.length; i++) {
+        if (i !== currentSectionIdx) candidates.push(i);
+      }
+      nextIdx = candidates[Math.floor(Math.random() * candidates.length)];
+    }
+    currentSectionIdx = nextIdx;
+    const section = loadedSections[nextIdx];
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = section.buffer;
+
+    const gainNode = audioCtx.createGain();
+    const now = audioCtx.currentTime;
+    const fadeDuration = 2.0;
+
+    // Fade in new section over 2s
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.linearRampToValueAtTime(1.0, now + fadeDuration);
+
+    source.connect(gainNode);
+    gainNode.connect(musicBusGain);
+    source.start(now);
+
+    // Crossfade previous section out over 2s
+    if (activeGainNode && activeSourceNode) {
+      const oldGain = activeGainNode;
+      const oldSource = activeSourceNode;
+      try {
+        oldGain.gain.setValueAtTime(oldGain.gain.value, now);
+        oldGain.gain.linearRampToValueAtTime(0.0001, now + fadeDuration);
+        oldSource.stop(now + fadeDuration + 0.1);
+      } catch {}
+    }
+
+    activeSourceNode = source;
+    activeGainNode = gainNode;
+
+    // Schedule next section crossfade ~2s before this section ends, or at end
+    const dur = section.buffer.duration;
+    const playTime = Math.max(5, dur - fadeDuration);
+    if (nextSectionTimeout) clearTimeout(nextSectionTimeout);
+    nextSectionTimeout = setTimeout(() => {
+      if (musicRunning && isUsingFileMusic) {
+        playRandomSection();
+      }
+    }, playTime * 1000);
+  }
+
+  async function startFileMusicEngine() {
+    if (!audioCtx) return false;
+    try {
+      const sections = await loadMusicSections();
+      if (!sections || sections.length === 0) {
+        return false;
+      }
+      isUsingFileMusic = true;
+      playRandomSection();
+      return true;
+    } catch (err) {
+      console.warn('Error starting file music engine:', err);
+      return false;
+    }
+  }
+
+  function startProceduralMusicEngine() {
+    if (!audioCtx || !musicRunning) return;
+    isUsingFileMusic = false;
     startVinylAir();
     triggerNextChord();
+    if (musicInterval) clearInterval(musicInterval);
     musicInterval = setInterval(() => {
       triggerNextChord();
     }, 6000);
+  }
+
+  async function startMusicEngine() {
+    if (!audioCtx || musicRunning) return;
+    musicRunning = true;
+
+    const ok = await startFileMusicEngine();
+    if (!ok) {
+      startProceduralMusicEngine();
+    }
   }
 
   function startVinylAir() {
@@ -727,6 +857,13 @@
     setMusicMuted,
     toggleMusic,
     isMusicMuted: isMusicMutedState,
+    get activeMusicSource() { return activeSourceNode; },
+    get activeMusicGain() { return activeGainNode; },
+    get currentTrackUrl() { return (loadedSections[currentSectionIdx] && loadedSections[currentSectionIdx].url) || null; },
+    get isUsingFileMusic() { return isUsingFileMusic; },
+    get loadedMusicSections() { return loadedSections; },
+    loadMusicSections,
+    playRandomSection,
     playFootstep,
     playDoorCreak,
     playBubblePop,
