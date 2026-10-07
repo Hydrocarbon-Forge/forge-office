@@ -21,7 +21,7 @@
         name: 'C6',
         color: '#E9C46A',
         hat: 'headset',
-        face: 'blush',
+        face: 'visor-glow',
         x: 21 * 32 + 16,
         y: 11 * 32 + 16, // behind front desk
         deskX: 21 * 32 + 16,
@@ -77,7 +77,7 @@
           name: 'Claude',
           color: '#E07A5F',
           hat: 'beret',
-          face: 'big-eyes',
+          face: 'happy',
           office: 'claude-code',
           homeX: 21 * 32 + 16,
           homeY: 4 * 32 + 16,

@@ -60,14 +60,14 @@ async function capture() {
       const renderer = new window.Renderer(canvas);
 
       const items = [
-        { label: 'Base (Coral)', opt: { color: 'coral', hat: 'none', face: 'plain' } },
-        { label: 'C6 Receptionist', opt: { color: '#E9C46A', hat: 'headset', face: 'blush', isAgentC6: true, forgeTool: true } },
-        { label: 'OpenCode', opt: { color: '#00A896', hat: 'headphones', face: 'glasses', isAgentOpenCode: true } },
-        { label: 'Claude', opt: { color: '#E07A5F', hat: 'beret', face: 'plain', isAgentClaude: true, hasScarf: true, scarfColor: '#E07A5F' } },
-        { label: 'Gemini', opt: { color: '#3D5A80', hat: 'cap', face: 'plain' } },
-        { label: 'Beanie + Freckles', opt: { color: 'tangerine', hat: 'beanie', face: 'freckles' } },
-        { label: 'Hard-Hat (Mint)', opt: { color: 'mint', hat: 'hard-hat', face: 'plain' } },
-        { label: 'Coffee Break', opt: { color: 'ocean', hat: 'none', face: 'plain', heldItem: { type: 'coffee', color: '#D97706' } } }
+        { label: 'Base (Coral)', opt: { color: 'coral', hat: 'none', face: 'happy' } },
+        { label: 'C6 Receptionist', opt: { color: '#E9C46A', hat: 'headset', face: 'visor-glow', isAgentC6: true, forgeTool: true } },
+        { label: 'OpenCode', opt: { color: '#00A896', hat: 'headphones', face: 'round-glasses', isAgentOpenCode: true } },
+        { label: 'Claude', opt: { color: '#E07A5F', hat: 'beret', face: 'happy', isAgentClaude: true, hasScarf: true, scarfColor: '#E07A5F' } },
+        { label: 'Gemini', opt: { color: '#3D5A80', hat: 'cap', face: 'sparkle', isAgentGemini: true } },
+        { label: 'Beanie + Blush', opt: { color: 'tangerine', hat: 'beanie', face: 'blush' } },
+        { label: 'Hard-Hat (Mint)', opt: { color: 'mint', hat: 'hard-hat', face: 'happy' } },
+        { label: 'Coffee Break', opt: { color: 'ocean', hat: 'none', face: 'happy', heldItem: { type: 'coffee', color: '#D97706' } } }
       ];
 
       items.forEach((item, idx) => {
@@ -147,7 +147,6 @@ async function capture() {
     ws.close();
   } finally {
     try { chromeProc.kill(); } catch {}
-    try { fs.unlinkSync(path.resolve(__dirname, 'avatar-showcase.html')); } catch {}
   }
 }
 

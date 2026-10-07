@@ -3965,16 +3965,7 @@
 
       const f = isMoving ? (frame % 4) : 1;
 
-      // 1. Cute puff tail (behind body)
-      ctx.fillStyle = pal.dark;
-      ctx.strokeStyle = '#22252A';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.arc(-8, 3, 2.8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // 2. Back Arm / Paw (behind body)
+      // 1. Back Arm (behind body)
       let backArmOffset = 0;
       let frontArmOffset = 0;
       if (isMoving && !isSitting) {
@@ -3986,7 +3977,7 @@
       ctx.lineWidth = 1.5;
       this.drawRoundedRect(ctx, -7.5 + backArmOffset, 0, 3.8, 6.5, 1.8, true, true);
 
-      // 3. Accessories behind body (satchel / toolbelt)
+      // 2. Accessories behind body (satchel / toolbelt)
       if (options.isAgentC6 || options.forgeTool) {
         ctx.save();
         ctx.fillStyle = '#94A3B8';
@@ -4016,7 +4007,7 @@
         ctx.fillRect(-6.5, 4, 1.2, 1.2);
       }
 
-      // 4. Cute Stubby Feet
+      // 3. Stubby Feet
       if (isSitting) {
         ctx.fillStyle = pal.dark;
         ctx.strokeStyle = '#22252A';
@@ -4042,58 +4033,24 @@
         ctx.fillRect(rightX + 1, rightY + 1, 2.2, 1);
       }
 
-      // 5. Creature Ears / Nubs (top of head sides)
-      ctx.fillStyle = pal.fill;
-      ctx.strokeStyle = '#22252A';
-      ctx.lineWidth = 1.5;
-      // Left ear nub
-      ctx.beginPath();
-      ctx.ellipse(-5.2, -15, 2.2, 3.2, -0.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = pal.highlight;
-      ctx.beginPath();
-      ctx.ellipse(-5.2, -15, 1.2, 1.8, -0.25, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Right ear nub
-      ctx.fillStyle = pal.fill;
-      ctx.beginPath();
-      ctx.ellipse(5.2, -15, 2.2, 3.2, 0.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = pal.highlight;
-      ctx.beginPath();
-      ctx.ellipse(5.2, -15, 1.2, 1.8, 0.25, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 6. Cute Marshmallow Body (Full body tinted in palette)
+      // 4. Rounded Body
       ctx.fillStyle = pal.fill;
       ctx.strokeStyle = '#22252A';
       ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(0, -15);
-      ctx.bezierCurveTo(4.5, -15, 7.5, -12, 7.5, -7.5);
+      ctx.moveTo(0, -14);
+      ctx.bezierCurveTo(4.5, -14, 7.5, -11, 7.5, -7.5);
       ctx.bezierCurveTo(8.5, -2, 8.5, 3, 7.5, 7);
       ctx.quadraticCurveTo(7, 8.5, 4.5, 8.5);
       ctx.lineTo(-4.5, 8.5);
       ctx.quadraticCurveTo(-7, 8.5, -7.5, 7);
       ctx.bezierCurveTo(-8.5, 3, -8.5, -2, -7.5, -7.5);
-      ctx.bezierCurveTo(-7.5, -12, -4.5, -15, 0, -15);
+      ctx.bezierCurveTo(-7.5, -11, -4.5, -14, 0, -14);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Soft belly / tummy patch
-      ctx.save();
-      ctx.fillStyle = pal.highlight;
-      ctx.globalAlpha = 0.45;
-      ctx.beginPath();
-      ctx.ellipse(0.5, 1.5, 5.2, 5.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // 7. Hex Carbon-6 Chest Badge
+      // 5. Hex Carbon-6 Chest Badge
       this.drawHexBadge(ctx, 0.8, 0.5, 2.7, pal);
 
       // Special C6 Agent core spark
@@ -4108,6 +4065,19 @@
         ctx.restore();
       }
 
+      // 6. Robot / Character Head (rounded-square / pill sitting on top of the body)
+      ctx.fillStyle = pal.fill;
+      ctx.strokeStyle = '#22252A';
+      ctx.lineWidth = 1.6;
+      this.drawRoundedRect(ctx, -7, -14.5, 14, 8.5, 4, true, true);
+
+      // 7. Visor faceplate (darker inset face area on the front of the head)
+      ctx.save();
+      ctx.fillStyle = pal.dark;
+      ctx.globalAlpha = 0.40;
+      this.drawRoundedRect(ctx, -5.5, -13.2, 11, 5.8, 2.8, true, false);
+      ctx.restore();
+
       // 8. Collar / Scarf (Claude or hasScarf)
       if (options.hasScarf || options.isAgentClaude) {
         const scarfCol = options.scarfColor || '#E07A5F';
@@ -4120,130 +4090,113 @@
         ctx.fillRect(-1, 3, 3.5, 1);
       }
 
-      // 9. Face Expression & Creature Eyes
-      const effectiveFace = (faceKey === 'classic' || faceKey === 'plain') ? 'plain' : faceKey;
-      const eyeRadiusX = (effectiveFace === 'big-eyes') ? 1.7 : 1.35;
-      const eyeRadiusY = (effectiveFace === 'big-eyes') ? 2.2 : 1.75;
+      // 9. Simple Face on Visor & Customizations
+      const effectiveFace = (faceKey === 'none') ? 'none' : (faceKey || 'happy');
 
-      // Glossy creature eyes
-      ctx.fillStyle = '#181A20';
-      ctx.beginPath();
-      ctx.ellipse(-1.8, -7.5, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(3.2, -7.5, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (effectiveFace !== 'none') {
+        const darkTheme = pal.fill && pal.fill.startsWith('#') && (
+          (parseInt(pal.fill.slice(1, 3), 16) * 0.299 +
+           parseInt(pal.fill.slice(3, 5), 16) * 0.587 +
+           parseInt(pal.fill.slice(5, 7), 16) * 0.114) < 100
+        );
+        const faceColor = darkTheme ? '#F8FAFC' : '#181A20';
 
-      // Main glossy catchlight
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath();
-      ctx.arc(-1.3, -8.2, (effectiveFace === 'big-eyes') ? 0.95 : 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(3.7, -8.2, (effectiveFace === 'big-eyes') ? 0.95 : 0.75, 0, Math.PI * 2);
-      ctx.fill();
+        // Two small simple pill eyes on visor
+        ctx.fillStyle = faceColor;
+        this.drawRoundedRect(ctx, -2.2, -11.2, 1.5, 2.2, 0.75, true, false);
+        this.drawRoundedRect(ctx, 2.0, -11.2, 1.5, 2.2, 0.75, true, false);
 
-      // Micro secondary twinkle catchlight
-      ctx.beginPath();
-      ctx.arc(-2.2, -6.9, 0.45, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(2.8, -6.9, 0.45, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Cute :3 critter mouth
-      ctx.strokeStyle = '#22252A';
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.arc(0.2, -5.2, 0.95, 0.1 * Math.PI, 0.9 * Math.PI);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(1.8, -5.2, 0.95, 0.1 * Math.PI, 0.9 * Math.PI);
-      ctx.stroke();
-
-      // Face customizations
-      if (effectiveFace === 'blush' || options.isAgentC6) {
-        ctx.fillStyle = 'rgba(244, 63, 94, 0.55)';
+        // Small gentle smile (short soft arc)
+        ctx.strokeStyle = faceColor;
+        ctx.lineWidth = 1.1;
         ctx.beginPath();
-        ctx.ellipse(-3.8, -5.8, 1.6, 0.9, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(5.2, -5.8, 1.6, 0.9, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+        ctx.arc(0.6, -8.2, 1.2, 0.15 * Math.PI, 0.85 * Math.PI);
+        ctx.stroke();
 
-      if (effectiveFace === 'sparkle' || options.isAgentGemini) {
-        ctx.save();
-        ctx.fillStyle = '#FBBF24';
-        const drawSparkle = (sx, sy, sr) => {
+        // Face customizations
+        if (effectiveFace === 'blush') {
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.55)';
           ctx.beginPath();
-          ctx.moveTo(sx, sy - sr);
-          ctx.quadraticCurveTo(sx, sy, sx + sr, sy);
-          ctx.quadraticCurveTo(sx, sy, sx, sy + sr);
-          ctx.quadraticCurveTo(sx, sy, sx - sr, sy);
-          ctx.quadraticCurveTo(sx, sy, sx, sy - sr);
+          ctx.ellipse(-3.8, -9.0, 1.4, 0.8, 0, 0, Math.PI * 2);
           ctx.fill();
-        };
-        drawSparkle(5.6, -9.5, 2.2);
-        drawSparkle(-4.2, -6.0, 1.5);
-        ctx.restore();
-      }
+          ctx.beginPath();
+          ctx.ellipse(4.4, -9.0, 1.4, 0.8, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-      if (effectiveFace === 'antenna') {
-        ctx.save();
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(0.5, -15);
-        ctx.quadraticCurveTo(2.0, -18.5, 0.5, -22);
-        ctx.stroke();
-        ctx.fillStyle = '#38BDF8';
-        ctx.beginPath();
-        ctx.arc(0.5, -22.5, 2.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0.0, -23.2, 0.8, 0.8);
-        ctx.restore();
-      }
+        if (effectiveFace === 'sparkle' || options.isAgentGemini) {
+          ctx.save();
+          ctx.fillStyle = '#FBBF24';
+          const drawSparkle = (sx, sy, sr) => {
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - sr);
+            ctx.quadraticCurveTo(sx, sy, sx + sr, sy);
+            ctx.quadraticCurveTo(sx, sy, sx, sy + sr);
+            ctx.quadraticCurveTo(sx, sy, sx - sr, sy);
+            ctx.quadraticCurveTo(sx, sy, sx, sy - sr);
+            ctx.fill();
+          };
+          drawSparkle(4.6, -11.8, 1.8);
+          drawSparkle(-4.2, -9.5, 1.2);
+          ctx.restore();
+        }
 
-      if (effectiveFace === 'round-glasses' || effectiveFace === 'glasses' || options.isAgentOpenCode) {
-        ctx.save();
-        ctx.strokeStyle = '#1E293B';
-        ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        ctx.arc(-1.8, -7.5, 2.6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(3.2, -7.5, 2.6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0.8, -7.5);
-        ctx.lineTo(0.6, -7.5);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.fillRect(-2.8, -8.8, 1.2, 1.0);
-        ctx.fillRect(2.2, -8.8, 1.2, 1.0);
-        ctx.restore();
-      }
+        if (effectiveFace === 'antenna') {
+          ctx.save();
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(0.5, -14.5);
+          ctx.quadraticCurveTo(1.8, -18.0, 0.5, -21.5);
+          ctx.stroke();
+          ctx.fillStyle = '#38BDF8';
+          ctx.beginPath();
+          ctx.arc(0.5, -22.0, 2.1, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0.0, -22.6, 0.8, 0.8);
+          ctx.restore();
+        }
 
-      if (effectiveFace === 'goggles' || effectiveFace === 'cyborg') {
-        ctx.save();
-        ctx.strokeStyle = '#451A03';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(-6, -12);
-        ctx.lineTo(6, -12);
-        ctx.stroke();
-        ctx.fillStyle = '#92400E';
-        this.drawRoundedRect(ctx, -2.5, -14.5, 3.2, 3.2, 1, true, true);
-        this.drawRoundedRect(ctx, 1.8, -14.5, 3.2, 3.2, 1, true, true);
-        ctx.fillStyle = '#38BDF8';
-        ctx.fillRect(-1.8, -13.8, 1.8, 1.8);
-        ctx.fillRect(2.5, -13.8, 1.8, 1.8);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(-1.2, -13.5, 0.7, 0.7);
-        ctx.fillRect(3.1, -13.5, 0.7, 0.7);
-        ctx.restore();
+        if (effectiveFace === 'round-glasses' || effectiveFace === 'glasses' || options.isAgentOpenCode) {
+          ctx.save();
+          ctx.strokeStyle = '#1E293B';
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
+          ctx.arc(-1.5, -10.1, 2.1, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(2.7, -10.1, 2.1, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0.6, -10.1);
+          ctx.lineTo(0.6, -10.1);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+          ctx.fillRect(-2.3, -11.1, 1.0, 0.8);
+          ctx.fillRect(1.9, -11.1, 1.0, 0.8);
+          ctx.restore();
+        }
+
+        if (effectiveFace === 'visor-glow' || options.isAgentC6) {
+          ctx.save();
+          ctx.strokeStyle = '#38BDF8';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(-4.5, -12.5);
+          ctx.lineTo(4.5, -12.5);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.moveTo(-4.0, -12.5);
+          ctx.lineTo(4.0, -12.5);
+          ctx.stroke();
+          ctx.fillStyle = '#E0F2FE';
+          ctx.fillRect(-4.5, -13.0, 1.0, 1.0);
+          ctx.fillRect(3.5, -13.0, 1.0, 1.0);
+          ctx.restore();
+        }
       }
 
       // 10. Hats & Headgear

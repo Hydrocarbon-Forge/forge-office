@@ -17,7 +17,7 @@
       } catch {}
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'big-eyes' },
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'happy' },
         gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'round-glasses' },
         guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'blush' }
       };
@@ -1221,7 +1221,7 @@
       const guestPreview = document.getElementById('guestAvatarPreview');
 
       const defaultCosmetics = {
-        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'big-eyes' },
+        nathan: { color: 'teal', hat: 'cap', trail: 'sparkle', face: 'happy' },
         gavin: { color: 'tangerine', hat: 'beanie', trail: 'sparkle', face: 'round-glasses' },
         guest: { color: 'coral', hat: 'cap', trail: 'sparkle', face: 'blush' }
       };
@@ -1240,7 +1240,7 @@
         });
       };
 
-      drawCardPreview(nathanPreview, 'teal', 'cap', 'big-eyes');
+      drawCardPreview(nathanPreview, 'teal', 'cap', 'happy');
       drawCardPreview(gavinPreview, 'tangerine', 'beanie', 'round-glasses');
       drawCardPreview(guestPreview, 'coral', 'cap', 'blush');
 

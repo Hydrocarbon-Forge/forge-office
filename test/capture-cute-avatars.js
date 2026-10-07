@@ -123,9 +123,9 @@ async function run() {
         const ctx = canvas.getContext('2d');
         const r = new window.Renderer(canvas);
         const agents = [
-          { name: 'C6 Receptionist', opt: { color: '#E9C46A', hat: 'headset', face: 'blush', isAgentC6: true, forgeTool: true } },
+          { name: 'C6 Receptionist', opt: { color: '#E9C46A', hat: 'headset', face: 'visor-glow', isAgentC6: true, forgeTool: true } },
           { name: 'OpenCode', opt: { color: '#00A896', hat: 'headphones', face: 'round-glasses', isAgentOpenCode: true } },
-          { name: 'Claude', opt: { color: '#E07A5F', hat: 'beret', face: 'plain', isAgentClaude: true, hasScarf: true, scarfColor: '#E07A5F' } },
+          { name: 'Claude', opt: { color: '#E07A5F', hat: 'beret', face: 'happy', isAgentClaude: true, hasScarf: true, scarfColor: '#E07A5F' } },
           { name: 'Gemini', opt: { color: '#3D5A80', hat: 'cap', face: 'sparkle', isAgentGemini: true } }
         ];
         agents.forEach((ag, idx) => {
@@ -142,12 +142,12 @@ async function run() {
         const ctx = canvas.getContext('2d');
         const r = new window.Renderer(canvas);
         const items = [
-          { label: 'Big Eyes (Mint)', opt: { color: 'mint', face: 'big-eyes', hat: 'none' } },
+          { label: 'Happy (Mint)', opt: { color: 'mint', face: 'happy', hat: 'none' } },
           { label: 'Blush (Ruby)', opt: { color: 'ruby', face: 'blush', hat: 'none' } },
           { label: 'Antenna (Ocean)', opt: { color: 'ocean', face: 'antenna', hat: 'none' } },
           { label: 'Glasses + Beanie', opt: { color: 'tangerine', face: 'round-glasses', hat: 'beanie' } },
           { label: 'Sparkle + Crown', opt: { color: 'lemon', face: 'sparkle', hat: 'crown' } },
-          { label: 'Goggles + Hard-Hat', opt: { color: 'cloud', face: 'goggles', hat: 'hard-hat' } }
+          { label: 'Visor Glow + Hard-Hat', opt: { color: 'cloud', face: 'visor-glow', hat: 'hard-hat' } }
         ];
         items.forEach((item, idx) => {
           const x = 75 + idx * 145;

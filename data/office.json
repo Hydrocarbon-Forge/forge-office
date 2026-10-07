@@ -31,12 +31,13 @@
       { "id": "bubble", "name": "Soapy Bubbles" }
     ],
     "faces": [
-      { "id": "big-eyes", "name": "Big Eyes" },
+      { "id": "happy", "name": "Happy" },
       { "id": "blush", "name": "Soft Blush" },
-      { "id": "sparkle", "name": "Sparkle Eyes" },
-      { "id": "antenna", "name": "Antenna" },
+      { "id": "sparkle", "name": "Sparkle" },
       { "id": "round-glasses", "name": "Round Glasses" },
-      { "id": "none", "name": "Clean Visage" }
+      { "id": "antenna", "name": "Antenna" },
+      { "id": "visor-glow", "name": "Visor Glow" },
+      { "id": "none", "name": "None" }
     ]
   },
   "c6": {
