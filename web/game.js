@@ -49,7 +49,11 @@
         isMoving: false,
         isSprinting: false,
         walkTimer: 0,
-        footFrame: 0
+        footFrame: 0,
+        heldItem: null,
+        heldDrink: null,
+        isSipping: false,
+        sipTimer: 0
       };
 
       this.playerPath = null;
@@ -288,6 +292,10 @@
           if (this.gameStarted) this.sipDrink();
         } else if (e.key === 'e' || e.key === 'E') {
           this.handleInteraction();
+        } else if (e.key === 'u' || e.key === 'U') {
+          if (this.gameStarted && this.isProjectorDocked) {
+            this.undockProjector('Undocked from projector (U)');
+          }
         } else if (e.key === 'Escape') {
           if (this.activeInspection) this.closeInspection();
           if (this.wardrobeOpen) this.toggleWardrobe(false);
@@ -502,7 +510,7 @@
         this.toggleTypingBoardModal();
         return;
       }
-      if (this.nearProjectorDock) {
+      if (this.nearProjectorDock || this.isProjectorDocked) {
         this.handleProjectorDock();
         return;
       }
@@ -653,18 +661,23 @@
             icon: '☕',
             color: '#451A03',
             drink: true,
-            source: 'coffee'
+            source: 'coffee',
+            sips: 3
           });
           sfx.playChime();
           this.showNotification('Fresh Espresso brewed! [Press Q to drink]');
         }
       }
 
-      // 3c. Projector auto-undock on walk away
+      // 3c. Projector auto-undock on walk away or leaving meeting room
       if (this.isProjectorDocked) {
-        const dockDist = Math.hypot(this.player.x - (36.5 * 32), this.player.y - (19 * 32));
-        if (dockDist > 85) {
-          this.undockProjector('Walked away — projector undocked');
+        if (this.map && !this.map.isInsideMeetingRoom(this.player.x, this.player.y)) {
+          this.undockProjector('Left the meeting room — undocked');
+        } else {
+          const dockDist = Math.hypot(this.player.x - (36.5 * 32), this.player.y - (19 * 32));
+          if (dockDist > 85) {
+            this.undockProjector('Walked away — projector undocked');
+          }
         }
       }
 
@@ -827,10 +840,29 @@
         p.sipTimer -= dt;
         if (p.sipTimer <= 0) {
           p.isSipping = false;
-          const finishedName = (p.heldItem && p.heldItem.name) || (p.heldDrink && p.heldDrink.name) || 'drink';
-          this.setHeldItem(null);
-          this.showNotification(`Finished ${finishedName}! Refreshed.`);
-          sfx.playDrinkSip();
+          const item = p.heldItem || p.heldDrink;
+          if (item) {
+            if (typeof item.sips === 'number') {
+              item.sips = Math.max(0, item.sips - 1);
+            } else {
+              item.sips = 0;
+            }
+            if (item.sips <= 0) {
+              const finishedName = item.name || 'drink';
+              this.setHeldItem(null);
+              this.showNotification(`Finished ${finishedName}! Refreshed.`);
+              sfx.playDrinkSip();
+            } else {
+              this.updateCarrySlotUI();
+              if (this.net) {
+                this.net.sendMove(this.player.x, this.player.y, 'idle', this.player.facing, item, false, true);
+              }
+              this.showNotification(`Took a sip of ${item.name} (${item.sips} left)`);
+              sfx.playDrinkSip();
+            }
+          } else {
+            this.setHeldItem(null);
+          }
         }
       }
     }
@@ -877,14 +909,6 @@
 
       // 4. Projector dock (around 36.5 * 32, 19 * 32)
       this.nearProjectorDock = Math.hypot(px - (36.5 * 32), py - (19 * 32)) < 52;
-      const projSettingsBtn = document.getElementById('projectorSettingsBtn');
-      if (projSettingsBtn) {
-        if (this.nearProjectorDock || this.isProjectorDocked) {
-          projSettingsBtn.classList.remove('hidden');
-        } else {
-          projSettingsBtn.classList.add('hidden');
-        }
-      }
       this.liveData.localScreenVideo = this.screenVideo;
 
       // 5. Break room coffee maker (4 * 32 + 16, 14 * 32 + 16)
@@ -1054,8 +1078,8 @@
           ctx,
           36.5 * 32,
           19 * 32 - 22,
-          isDocked ? '[E] Undock Screen' : '[E] Dock & Share Screen',
-          isDocked ? 'Click ⚙ PRESENT for options' : 'Share Chrome screen to room'
+          isDocked ? '[E] Present Menu' : '[E] Dock & Share Screen',
+          isDocked ? '[U or Undock in menu] to stop' : 'Share Chrome screen to room'
         );
       } else if (this.nearCoffeeMaker && !this.activeInspection) {
         this.renderGenericPrompt(ctx, 4 * 32 + 16, 14 * 32 - 16, this.isCoffeeBrewing ? '☕ Brewing Espresso...' : '[E] Brew Fresh Espresso', 'Fresh roast coffee');
@@ -1329,6 +1353,7 @@
         sfx.init();
         startScreen.classList.add('hidden');
         this.gameStarted = true;
+        this.updateCarrySlotUI();
         sfx.playChime();
         this.showNotification(`Welcome to Forge Office, ${this.player.name}!`);
 
@@ -2107,6 +2132,7 @@
       if (drinkBtn) {
         drinkBtn.addEventListener('click', () => this.sipDrink());
       }
+      this.updateCarrySlotUI();
     }
 
     setHeldItem(item) {
@@ -2134,14 +2160,34 @@
       const pill = document.getElementById('carrySlotPill');
       const icon = document.getElementById('carryItemIcon');
       const text = document.getElementById('carryItemText');
+      const drinkBtn = document.getElementById('drinkActionBtn');
       if (!pill) return;
       const item = this.player.heldItem || this.player.heldDrink;
       if (item) {
         pill.classList.remove('hidden');
         if (icon) icon.innerText = item.icon || '🥤';
-        if (text) text.innerText = item.name || 'Drink';
+        if (text) {
+          const name = item.name || 'Drink';
+          if (typeof item.sips === 'number') {
+            text.innerText = `${name} · ${item.sips} left`;
+          } else {
+            text.innerText = name;
+          }
+        }
+        if (drinkBtn) {
+          if (item.drink === true) {
+            drinkBtn.classList.remove('hidden');
+            drinkBtn.style.display = '';
+          } else {
+            drinkBtn.classList.add('hidden');
+            drinkBtn.style.display = 'none';
+          }
+        }
       } else {
         pill.classList.add('hidden');
+        if (drinkBtn) {
+          drinkBtn.classList.add('hidden');
+        }
       }
     }
 
@@ -2566,18 +2612,13 @@
     setupProjectorModal() {
       const modal = document.getElementById('projectorModal');
       const closeBtn = document.getElementById('closeProjectorBtn');
-      const undockBtn = document.getElementById('undockBtn');
+      const undockBtn = document.getElementById('projectorUndockBtn') || document.getElementById('undockBtn');
       const updateTopicBtn = document.getElementById('updateTopicBtn');
       const topicInput = document.getElementById('presenterTopicInput');
       const chips = document.querySelectorAll('.topic-chip');
       const retryBtn = document.getElementById('projectorShareRetryBtn');
-      const projSettingsBtn = document.getElementById('projectorSettingsBtn');
 
       if (closeBtn) closeBtn.addEventListener('click', () => this.toggleProjectorModal(false));
-
-      if (projSettingsBtn) {
-        projSettingsBtn.addEventListener('click', () => this.toggleProjectorModal());
-      }
 
       if (retryBtn) {
         retryBtn.addEventListener('click', () => {
@@ -2611,11 +2652,13 @@
     }
 
     handleProjectorDock() {
+      if (this.projectorModalOpen) {
+        this.toggleProjectorModal(false);
+        return;
+      }
       if (this.isProjectorDocked) {
-        // E key while docked -> UNDOCK directly!
-        this.undockProjector('Undocked from projector');
+        this.toggleProjectorModal(true);
       } else {
-        // E key while not docked -> DOCK!
         this.dockProjector();
       }
     }
@@ -2821,7 +2864,8 @@
                 color: drinkColor,
                 icon: drinkIcon,
                 drink: true,
-                source: 'vending'
+                source: 'vending',
+                sips: 3
               });
               sfx.playChime();
               this.showNotification(`Dispensed ${drinkName}! [Press Q to drink]`);
@@ -2868,7 +2912,8 @@
               color,
               icon,
               drink: true,
-              source: 'fridge'
+              source: 'fridge',
+              sips: 3
             });
             sfx.playChime();
             this.showNotification(`Grabbed chilled ${name} from fridge! [Press Q to drink]`);
@@ -2979,7 +3024,8 @@
               color: selectedBase.color,
               icon: selectedBase.icon,
               drink: true,
-              source: 'station'
+              source: 'station',
+              sips: 4
             });
             sfx.playChime();
             this.showNotification(`Brewed custom ${displayName}! [Press Q to drink]`);
@@ -3089,7 +3135,8 @@
             icon: icon,
             color: color,
             drink: true,
-            source: 'station'
+            source: 'station',
+            sips: 3
           });
           sfx.playChime();
           this.showNotification(`Brewed saved preset "${pr.name}"! [Press Q to drink]`);

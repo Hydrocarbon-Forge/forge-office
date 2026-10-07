@@ -3771,109 +3771,109 @@
       switch (hatType) {
         case 'cap':
           ctx.fillStyle = '#E53E3E';
-          this.drawRoundedRect(ctx, -6.5, -16.5, 13, 7.5, 3.5, true, true);
+          this.drawRoundedRect(ctx, -7.2, -21.5, 14.4, 7.5, 3.5, true, true);
           ctx.fillStyle = '#B91C1C';
-          this.drawRoundedRect(ctx, 2, -12, 8, 3, 1.5, true, true);
+          this.drawRoundedRect(ctx, 2, -17.0, 8.5, 3, 1.5, true, true);
           ctx.beginPath();
-          ctx.arc(0, -17, 1.2, 0, Math.PI * 2);
+          ctx.arc(0, -22, 1.2, 0, Math.PI * 2);
           ctx.fill();
           break;
 
         case 'beanie':
           ctx.fillStyle = '#EA580C';
-          this.drawRoundedRect(ctx, -6.5, -17.5, 13, 8.5, 4, true, true);
+          this.drawRoundedRect(ctx, -7.2, -22.5, 14.4, 8.5, 4, true, true);
           ctx.fillStyle = '#C2410C';
-          this.drawRoundedRect(ctx, -7.5, -12.5, 15, 3.5, 1.5, true, true);
+          this.drawRoundedRect(ctx, -8.0, -17.5, 16, 3.5, 1.5, true, true);
           ctx.fillStyle = '#FED7AA';
           ctx.beginPath();
-          ctx.arc(0, -18.5, 2.6, 0, Math.PI * 2);
+          ctx.arc(0, -23.5, 2.6, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           break;
 
         case 'hard-hat':
           ctx.fillStyle = '#FACC15';
-          this.drawRoundedRect(ctx, -7, -17.5, 14, 8.5, 4.5, true, true);
+          this.drawRoundedRect(ctx, -7.5, -22.5, 15, 8.5, 4.5, true, true);
           ctx.fillStyle = '#CA8A04';
-          this.drawRoundedRect(ctx, -8.5, -12, 17, 3, 1.5, true, true);
+          this.drawRoundedRect(ctx, -9.0, -17.0, 18, 3, 1.5, true, true);
           ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(1, -15.5, 2.5, 2.5);
+          ctx.fillRect(1, -20.5, 2.5, 2.5);
           break;
 
         case 'headphones':
           ctx.strokeStyle = '#1E293B';
           ctx.lineWidth = 2.5;
           ctx.beginPath();
-          ctx.arc(0, -8.5, 8.5, Math.PI * 0.88, Math.PI * 2.12);
+          ctx.arc(0, -13.0, 9.5, Math.PI * 0.88, Math.PI * 2.12);
           ctx.stroke();
           ctx.fillStyle = '#0D9488';
-          this.drawRoundedRect(ctx, -9, -12, 3.5, 6.5, 1.8, true, true);
-          this.drawRoundedRect(ctx, 5.5, -12, 3.5, 6.5, 1.8, true, true);
+          this.drawRoundedRect(ctx, -9.8, -16.5, 3.6, 7.0, 1.8, true, true);
+          this.drawRoundedRect(ctx, 6.2, -16.5, 3.6, 7.0, 1.8, true, true);
           break;
 
         case 'headset':
           ctx.strokeStyle = '#1E293B';
           ctx.lineWidth = 2.2;
           ctx.beginPath();
-          ctx.arc(0, -8.5, 8.5, Math.PI * 0.88, Math.PI * 2.12);
+          ctx.arc(0, -13.0, 9.5, Math.PI * 0.88, Math.PI * 2.12);
           ctx.stroke();
           ctx.fillStyle = '#F59E0B';
-          this.drawRoundedRect(ctx, -8.5, -11.5, 3.5, 6, 1.5, true, true);
+          this.drawRoundedRect(ctx, -9.5, -16.0, 3.5, 6.5, 1.5, true, true);
           ctx.strokeStyle = '#1E293B';
           ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.moveTo(-6.5, -8.5);
-          ctx.quadraticCurveTo(0, -5.5, 4.2, -6.5);
+          ctx.moveTo(-7.5, -13.0);
+          ctx.quadraticCurveTo(0, -10.0, 4.2, -11.0);
           ctx.stroke();
           ctx.fillStyle = '#1E293B';
           ctx.beginPath();
-          ctx.arc(4.8, -6.5, 1.3, 0, Math.PI * 2);
+          ctx.arc(4.8, -11.0, 1.3, 0, Math.PI * 2);
           ctx.fill();
           break;
 
         case 'beret':
           ctx.fillStyle = '#DC2626';
           ctx.beginPath();
-          ctx.ellipse(0, -15, 8.5, 3.8, -0.18, 0, Math.PI * 2);
+          ctx.ellipse(0, -20.0, 9.0, 4.0, -0.18, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.beginPath();
-          ctx.moveTo(0, -18.5);
-          ctx.lineTo(0.8, -21);
+          ctx.moveTo(0, -23.5);
+          ctx.lineTo(0.8, -26.0);
           ctx.stroke();
           break;
 
         case 'crown':
           ctx.fillStyle = '#FBBF24';
           ctx.beginPath();
-          ctx.moveTo(-6, -14);
-          ctx.lineTo(-6, -19);
-          ctx.lineTo(-3, -16);
-          ctx.lineTo(0, -20);
-          ctx.lineTo(3, -16);
-          ctx.lineTo(6, -19);
-          ctx.lineTo(6, -14);
+          ctx.moveTo(-6.5, -19);
+          ctx.lineTo(-6.5, -24);
+          ctx.lineTo(-3.2, -21);
+          ctx.lineTo(0, -25);
+          ctx.lineTo(3.2, -21);
+          ctx.lineTo(6.5, -24);
+          ctx.lineTo(6.5, -19);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = '#EF4444';
           ctx.beginPath();
-          ctx.arc(0, -15.5, 1.2, 0, Math.PI * 2);
+          ctx.arc(0, -20.5, 1.2, 0, Math.PI * 2);
           ctx.fill();
           break;
 
         case 'wizard':
           ctx.fillStyle = '#7C3AED';
           ctx.beginPath();
-          ctx.moveTo(-8, -14);
-          ctx.lineTo(1, -25);
-          ctx.lineTo(8, -14);
+          ctx.moveTo(-8.5, -19);
+          ctx.lineTo(1, -30);
+          ctx.lineTo(8.5, -19);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = '#FBBF24';
           ctx.beginPath();
-          ctx.arc(0, -18, 1.8, 0, Math.PI * 2);
+          ctx.arc(0, -23, 1.8, 0, Math.PI * 2);
           ctx.fill();
           break;
 
@@ -3882,7 +3882,7 @@
           ctx.strokeStyle = '#FACC15';
           ctx.lineWidth = 2.2;
           ctx.beginPath();
-          ctx.ellipse(0, -20, 8, 2.5, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, -25, 8.5, 2.6, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           break;
@@ -3890,22 +3890,22 @@
         case 'bow':
           ctx.fillStyle = '#EF4444';
           ctx.beginPath();
-          ctx.moveTo(1, -15);
-          ctx.lineTo(-4, -18);
-          ctx.lineTo(-4, -12);
+          ctx.moveTo(1, -20);
+          ctx.lineTo(-4, -23);
+          ctx.lineTo(-4, -17);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
           ctx.beginPath();
-          ctx.moveTo(1, -15);
-          ctx.lineTo(6, -18);
-          ctx.lineTo(6, -12);
+          ctx.moveTo(1, -20);
+          ctx.lineTo(6, -23);
+          ctx.lineTo(6, -17);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = '#B91C1C';
           ctx.beginPath();
-          ctx.arc(1, -15, 1.8, 0, Math.PI * 2);
+          ctx.arc(1, -20, 1.8, 0, Math.PI * 2);
           ctx.fill();
           break;
 
@@ -3913,12 +3913,12 @@
           ctx.strokeStyle = '#64748B';
           ctx.lineWidth = 1.8;
           ctx.beginPath();
-          ctx.moveTo(0, -15);
-          ctx.lineTo(0, -22);
+          ctx.moveTo(0, -19.5);
+          ctx.lineTo(0, -26.5);
           ctx.stroke();
           ctx.fillStyle = '#38BDF8';
           ctx.beginPath();
-          ctx.arc(0, -23, 2.8, 0, Math.PI * 2);
+          ctx.arc(0, -27.5, 2.8, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           break;
@@ -4069,13 +4069,13 @@
       ctx.fillStyle = pal.fill;
       ctx.strokeStyle = '#22252A';
       ctx.lineWidth = 1.6;
-      this.drawRoundedRect(ctx, -7, -14.5, 14, 8.5, 4, true, true);
+      this.drawRoundedRect(ctx, -7.75, -19.5, 15.5, 10.5, 4.5, true, true);
 
       // 7. Visor faceplate (darker inset face area on the front of the head)
       ctx.save();
       ctx.fillStyle = pal.dark;
       ctx.globalAlpha = 0.40;
-      this.drawRoundedRect(ctx, -5.5, -13.2, 11, 5.8, 2.8, true, false);
+      this.drawRoundedRect(ctx, -6.5, -17.8, 13, 6.4, 3, true, false);
       ctx.restore();
 
       // 8. Collar / Scarf (Claude or hasScarf)
@@ -4084,10 +4084,10 @@
         ctx.fillStyle = scarfCol;
         ctx.strokeStyle = '#22252A';
         ctx.lineWidth = 1.5;
-        this.drawRoundedRect(ctx, -6, -5.5, 12, 3.8, 1.8, true, true);
-        this.drawRoundedRect(ctx, -1, -3, 3.5, 7.5, 1.2, true, true);
+        this.drawRoundedRect(ctx, -6.5, -8.0, 13, 3.8, 1.8, true, true);
+        this.drawRoundedRect(ctx, -1, -5.5, 3.5, 7.5, 1.2, true, true);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillRect(-1, 3, 3.5, 1);
+        ctx.fillRect(-1, 0.5, 3.5, 1);
       }
 
       // 9. Simple Face on Visor & Customizations
@@ -4103,24 +4103,24 @@
 
         // Two small simple pill eyes on visor
         ctx.fillStyle = faceColor;
-        this.drawRoundedRect(ctx, -2.2, -11.2, 1.5, 2.2, 0.75, true, false);
-        this.drawRoundedRect(ctx, 2.0, -11.2, 1.5, 2.2, 0.75, true, false);
+        this.drawRoundedRect(ctx, -2.4, -15.5, 1.6, 2.3, 0.8, true, false);
+        this.drawRoundedRect(ctx, 2.0, -15.5, 1.6, 2.3, 0.8, true, false);
 
         // Small gentle smile (short soft arc)
         ctx.strokeStyle = faceColor;
         ctx.lineWidth = 1.1;
         ctx.beginPath();
-        ctx.arc(0.6, -8.2, 1.2, 0.15 * Math.PI, 0.85 * Math.PI);
+        ctx.arc(0.6, -12.5, 1.3, 0.15 * Math.PI, 0.85 * Math.PI);
         ctx.stroke();
 
         // Face customizations
         if (effectiveFace === 'blush') {
           ctx.fillStyle = 'rgba(244, 63, 94, 0.55)';
           ctx.beginPath();
-          ctx.ellipse(-3.8, -9.0, 1.4, 0.8, 0, 0, Math.PI * 2);
+          ctx.ellipse(-4.2, -13.3, 1.5, 0.85, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.beginPath();
-          ctx.ellipse(4.4, -9.0, 1.4, 0.8, 0, 0, Math.PI * 2);
+          ctx.ellipse(4.4, -13.3, 1.5, 0.85, 0, 0, Math.PI * 2);
           ctx.fill();
         }
 
@@ -4136,8 +4136,8 @@
             ctx.quadraticCurveTo(sx, sy, sx, sy - sr);
             ctx.fill();
           };
-          drawSparkle(4.6, -11.8, 1.8);
-          drawSparkle(-4.2, -9.5, 1.2);
+          drawSparkle(4.8, -16.1, 1.9);
+          drawSparkle(-4.4, -13.8, 1.3);
           ctx.restore();
         }
 
@@ -4146,15 +4146,15 @@
           ctx.strokeStyle = '#475569';
           ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.moveTo(0.5, -14.5);
-          ctx.quadraticCurveTo(1.8, -18.0, 0.5, -21.5);
+          ctx.moveTo(0.5, -19.5);
+          ctx.quadraticCurveTo(1.8, -23.0, 0.5, -26.5);
           ctx.stroke();
           ctx.fillStyle = '#38BDF8';
           ctx.beginPath();
-          ctx.arc(0.5, -22.0, 2.1, 0, Math.PI * 2);
+          ctx.arc(0.5, -27.0, 2.1, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0.0, -22.6, 0.8, 0.8);
+          ctx.fillRect(0.0, -27.6, 0.8, 0.8);
           ctx.restore();
         }
 
@@ -4163,18 +4163,18 @@
           ctx.strokeStyle = '#1E293B';
           ctx.lineWidth = 1.3;
           ctx.beginPath();
-          ctx.arc(-1.5, -10.1, 2.1, 0, Math.PI * 2);
+          ctx.arc(-1.6, -14.4, 2.2, 0, Math.PI * 2);
           ctx.stroke();
           ctx.beginPath();
-          ctx.arc(2.7, -10.1, 2.1, 0, Math.PI * 2);
+          ctx.arc(2.8, -14.4, 2.2, 0, Math.PI * 2);
           ctx.stroke();
           ctx.beginPath();
-          ctx.moveTo(0.6, -10.1);
-          ctx.lineTo(0.6, -10.1);
+          ctx.moveTo(0.6, -14.4);
+          ctx.lineTo(0.6, -14.4);
           ctx.stroke();
           ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-          ctx.fillRect(-2.3, -11.1, 1.0, 0.8);
-          ctx.fillRect(1.9, -11.1, 1.0, 0.8);
+          ctx.fillRect(-2.4, -15.4, 1.0, 0.8);
+          ctx.fillRect(2.0, -15.4, 1.0, 0.8);
           ctx.restore();
         }
 
@@ -4183,18 +4183,18 @@
           ctx.strokeStyle = '#38BDF8';
           ctx.lineWidth = 1.2;
           ctx.beginPath();
-          ctx.moveTo(-4.5, -12.5);
-          ctx.lineTo(4.5, -12.5);
+          ctx.moveTo(-5.2, -14.6);
+          ctx.lineTo(5.2, -14.6);
           ctx.stroke();
           ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
           ctx.lineWidth = 2.4;
           ctx.beginPath();
-          ctx.moveTo(-4.0, -12.5);
-          ctx.lineTo(4.0, -12.5);
+          ctx.moveTo(-4.6, -14.6);
+          ctx.lineTo(4.6, -14.6);
           ctx.stroke();
           ctx.fillStyle = '#E0F2FE';
-          ctx.fillRect(-4.5, -13.0, 1.0, 1.0);
-          ctx.fillRect(3.5, -13.0, 1.0, 1.0);
+          ctx.fillRect(-5.2, -15.1, 1.0, 1.0);
+          ctx.fillRect(4.2, -15.1, 1.0, 1.0);
           ctx.restore();
         }
       }

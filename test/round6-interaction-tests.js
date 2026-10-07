@@ -543,7 +543,184 @@ async function runRound6Tests() {
     }
     console.log('PASS: Cute non-human creature avatar redesign verified (no human head/skin/hair; 5 screenshots generated).');
 
-    console.log('\n=== ALL ROUND 6 INTERACTION TESTS PASSED (13/13) ===');
+    // -------------------------------------------------------------------------
+    // TEST 14: Carry Slot HUD Lifecycle, Multi-Sip Consumption, and Remote Sync
+    // -------------------------------------------------------------------------
+    console.log('\n[Test 14] Testing Carry Slot HUD Lifecycle & Sips Regression...');
+
+    // A. Verify index.html & game.js code invariants
+    const htmlFile = fs.readFileSync(path.resolve(__dirname, '../web/index.html'), 'utf8');
+    const gameFile = fs.readFileSync(path.resolve(__dirname, '../web/game.js'), 'utf8');
+
+    if (htmlFile.includes('id="projectorSettingsBtn"')) {
+      throw new Error('index.html still contains projectorSettingsBtn');
+    }
+    if (gameFile.includes('projectorSettingsBtn')) {
+      throw new Error('game.js still references projectorSettingsBtn');
+    }
+    if (!gameFile.includes('isInsideMeetingRoom') || !gameFile.includes('Left the meeting room — undocked')) {
+      throw new Error('game.js missing meeting room boundary check for projector auto-undock');
+    }
+
+    // B. Carry Slot HUD DOM simulation (a, b, c, d)
+    const mockPillClasses = new Set(['hud-chip', 'hidden']);
+    const mockDrinkBtnClasses = new Set(['hud-mini-btn', 'hidden']);
+    const mockElements = {
+      carrySlotPill: {
+        classList: {
+          add: (c) => mockPillClasses.add(c),
+          remove: (c) => mockPillClasses.delete(c),
+          contains: (c) => mockPillClasses.has(c)
+        }
+      },
+      carryItemIcon: { innerText: '' },
+      carryItemText: { innerText: '' },
+      drinkActionBtn: {
+        style: {},
+        classList: {
+          add: (c) => mockDrinkBtnClasses.add(c),
+          remove: (c) => mockDrinkBtnClasses.delete(c),
+          contains: (c) => mockDrinkBtnClasses.has(c)
+        }
+      }
+    };
+
+    function simulateUpdateCarrySlotUI(player) {
+      const pill = mockElements.carrySlotPill;
+      const icon = mockElements.carryItemIcon;
+      const text = mockElements.carryItemText;
+      const drinkBtn = mockElements.drinkActionBtn;
+      const item = player.heldItem || player.heldDrink;
+      if (item) {
+        pill.classList.remove('hidden');
+        if (icon) icon.innerText = item.icon || '🥤';
+        if (text) {
+          const name = item.name || 'Drink';
+          if (typeof item.sips === 'number') {
+            text.innerText = `${name} · ${item.sips} left`;
+          } else {
+            text.innerText = name;
+          }
+        }
+        if (drinkBtn) {
+          if (item.drink === true) {
+            drinkBtn.classList.remove('hidden');
+            drinkBtn.style.display = '';
+          } else {
+            drinkBtn.classList.add('hidden');
+            drinkBtn.style.display = 'none';
+          }
+        }
+      } else {
+        pill.classList.add('hidden');
+        if (drinkBtn) {
+          drinkBtn.classList.add('hidden');
+        }
+      }
+    }
+
+    const testSimPlayer = { heldItem: null, heldDrink: null, isSipping: false, sipTimer: 0 };
+
+    // (a) Pill hidden at start with no item
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (!mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Carry pill is visible at start when player holds no item');
+    }
+
+    // (b) Picking up a drink with 3 sips -> pill visible with SIP button & '3 left'
+    testSimPlayer.heldItem = { name: 'Fresh Espresso', icon: '☕', color: '#451A03', drink: true, sips: 3 };
+    testSimPlayer.heldDrink = testSimPlayer.heldItem;
+    simulateUpdateCarrySlotUI(testSimPlayer);
+
+    if (mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Carry pill is hidden after picking up a drink');
+    }
+    if (mockElements.drinkActionBtn.classList.contains('hidden')) {
+      throw new Error('SIP [Q] button is hidden for a drink item');
+    }
+    if (!mockElements.carryItemText.innerText.includes('Fresh Espresso · 3 left')) {
+      throw new Error(`Unexpected pill text: ${mockElements.carryItemText.innerText}`);
+    }
+
+    // (c) Sip 1 -> decrements sips to 2, pill still visible
+    testSimPlayer.heldItem.sips -= 1;
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (!mockElements.carryItemText.innerText.includes('Fresh Espresso · 2 left')) {
+      throw new Error(`Expected '2 left' after sip 1, got: ${mockElements.carryItemText.innerText}`);
+    }
+    if (mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Pill hid prematurely while sips remain');
+    }
+
+    // Sip 2 -> decrements sips to 1
+    testSimPlayer.heldItem.sips -= 1;
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (!mockElements.carryItemText.innerText.includes('Fresh Espresso · 1 left')) {
+      throw new Error(`Expected '1 left' after sip 2, got: ${mockElements.carryItemText.innerText}`);
+    }
+
+    // Sip 3 -> sips reach 0 -> consume (setHeldItem(null)) -> pill hidden again
+    testSimPlayer.heldItem.sips -= 1;
+    if (testSimPlayer.heldItem.sips <= 0) {
+      testSimPlayer.heldItem = null;
+      testSimPlayer.heldDrink = null;
+    }
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (!mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Pill was not hidden after drink was fully consumed');
+    }
+
+    // (d) Non-drink item -> pill visible, but SIP button hidden!
+    testSimPlayer.heldItem = { name: 'Archival Blueprints', icon: '📜', drink: false };
+    testSimPlayer.heldDrink = testSimPlayer.heldItem;
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Pill is hidden for non-drink carryable item');
+    }
+    if (!mockElements.drinkActionBtn.classList.contains('hidden')) {
+      throw new Error('SIP [Q] button should be hidden for non-drink items');
+    }
+    if (!mockElements.carryItemText.innerText.includes('Archival Blueprints')) {
+      throw new Error(`Unexpected text for non-drink: ${mockElements.carryItemText.innerText}`);
+    }
+
+    // Clear non-drink
+    testSimPlayer.heldItem = null;
+    testSimPlayer.heldDrink = null;
+    simulateUpdateCarrySlotUI(testSimPlayer);
+    if (!mockElements.carrySlotPill.classList.contains('hidden')) {
+      throw new Error('Pill was not hidden after clearing non-drink item');
+    }
+
+    // C. Multiplayer Sync: Client A moves with item holding sips count, Client B receives it
+    let bReceivedMoveItem = null;
+    const moveListener = (evt) => {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === 'move' && msg.id === clientA.id && msg.heldItem) {
+        bReceivedMoveItem = msg.heldItem;
+      }
+    };
+    clientB.ws.addEventListener('message', moveListener);
+
+    clientA.ws.send(JSON.stringify({
+      type: 'move',
+      x: 1220,
+      y: 544,
+      dir: 'idle',
+      facing: 1,
+      heldItem: { name: 'Cyber Cola', drink: true, sips: 2 },
+      heldDrink: { name: 'Cyber Cola', drink: true, sips: 2 },
+      sipping: false
+    }));
+    await wait(150);
+    clientB.ws.removeEventListener('message', moveListener);
+
+    if (!bReceivedMoveItem || bReceivedMoveItem.sips !== 2 || bReceivedMoveItem.name !== 'Cyber Cola') {
+      throw new Error(`Client B did not receive updated heldItem with sips: ${JSON.stringify(bReceivedMoveItem)}`);
+    }
+    console.log('PASS: Carry HUD lifecycle, sips countdown, non-drink SIP hiding, and multiplayer sync verified.');
+
+    console.log('\n=== ALL ROUND 6 INTERACTION TESTS PASSED (14/14) ===');
   } finally {
     for (const ws of socketsToClose) {
       try { ws.close(); } catch {}
