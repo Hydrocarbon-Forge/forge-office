@@ -77,6 +77,13 @@
 <a href="https://github.com/Hydrocarbon-Forge/mod-factory"><img alt="more: mod-factory" src="https://img.shields.io/badge/repo-mod--factory-24292F?logo=github&logoColor=white"></a>
 </p>
 
+<p align="center">
+<a href="https://github.com/Hydrocarbon-Forge/forge-office/commits"><img alt="commits list" src="https://img.shields.io/badge/commits-history-F05032?logo=github&logoColor=white"></a>
+<a href="https://github.com/Hydrocarbon-Forge/forge-office/branches"><img alt="branches" src="https://img.shields.io/badge/browse-branches-24292F?logo=github&logoColor=white"></a>
+<a href="https://github.com/Hydrocarbon-Forge/forge-office/tags"><img alt="tags" src="https://img.shields.io/badge/browse-tags-24292F?logo=github&logoColor=white"></a>
+<a href="https://github.com/Hydrocarbon-Forge/forge-office/issues"><img alt="issues list" src="https://img.shields.io/badge/browse-issues-D73A49?logo=github&logoColor=white"></a>
+</p>
+
 ## Overview
 
 Forge-Office draws its environment procedurally on a Canvas 2D surface (`web/render.js`).
